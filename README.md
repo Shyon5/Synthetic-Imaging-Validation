@@ -6,7 +6,7 @@ The package does not generate images, prescribe a preprocessing pipeline, or bun
 
 ## Installation
 
-Create a Python 3.9+ environment and install the project locally:
+Create a Python 3.10, 3.11, or 3.12 environment and install the project locally:
 
 ```bash
 python -m pip install -e .
@@ -26,7 +26,7 @@ python -m pip install -e ".[test]"
 
 Use `.[test,torch]` to include the optional MS-SSIM tests.
 
-Core dependencies are NumPy, SciPy, scikit-image, and nibabel. PyTorch and torchmetrics are optional and used only by MS-SSIM. Matplotlib is optional via the `viz` extra.
+Core dependencies are NumPy 1.26, SciPy, scikit-image, and nibabel. NumPy 2.x is intentionally excluded from the first release while cross-platform compatibility is established. PyTorch and torchmetrics are optional and used only by MS-SSIM. Matplotlib is optional via the `viz` extra.
 
 ## Quick start
 

@@ -33,6 +33,7 @@ def test_invalid_inputs_raise_clear_errors():
         mse(bad, np.zeros_like(bad))
 
 
+@pytest.mark.torch
 def test_numpy_and_torch_inputs_match():
     torch = pytest.importorskip("torch")
     real = np.arange(16, dtype=np.float32).reshape(4, 4)
@@ -40,6 +41,7 @@ def test_numpy_and_torch_inputs_match():
     assert mae(torch.from_numpy(real), torch.from_numpy(synthetic)) == mae(real, synthetic)
 
 
+@pytest.mark.torch
 def test_optional_ms_ssim_identical_input():
     pytest.importorskip("torch")
     pytest.importorskip("torchmetrics")
