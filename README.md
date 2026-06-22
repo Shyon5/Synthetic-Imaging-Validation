@@ -1,5 +1,7 @@
 # Synthetic Imaging Validation
 
+[![Tests](https://github.com/Shyon5/Synthetic-Imaging-Validation/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/Shyon5/Synthetic-Imaging-Validation/actions/workflows/tests.yml)
+
 `synthetic-imaging-validation` is a small, model-agnostic Python package for comparing real and synthetic medical images. It provides pairwise image similarity, intensity-distribution analysis, mask overlap and surface metrics, spatial plausibility checks, and feature-distribution metrics.
 
 The package does not generate images, prescribe a preprocessing pipeline, or bundle a feature encoder. Inputs and assumptions remain explicit so results can be reproduced across datasets and research groups.
