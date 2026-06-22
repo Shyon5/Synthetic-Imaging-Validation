@@ -1,0 +1,55 @@
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.hypothesis/
+.tox/
+.nox/
+.coverage
+.coverage.*
+coverage.xml
+htmlcov/
+build/
+dist/
+
+# Local environments and configuration
+.venv/
+venv/
+.env
+.env.*
+!.env.example
+
+# IDE and operating-system files
+.idea/
+.history/
+.DS_Store
+Thumbs.db
+Desktop.ini
+
+# Generated reports and experiment artifacts
+artifacts/
+checkpoints/
+outputs/
+reports/
+results/
+results.json
+results.csv
+
+# Local datasets and medical-imaging files
+data/
+datasets/
+*.dcm
+*.h5
+*.hdf5
+*.mha
+*.mhd
+*.nii
+*.nii.gz
+*.npy
+*.npz
+*.nrrd
+*.pt
+*.pth
