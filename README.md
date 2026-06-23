@@ -1,34 +1,57 @@
 # Synthetic Imaging Validation
 
-[![Tests](https://github.com/Shyon5/Synthetic-Imaging-Validation/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/Shyon5/Synthetic-Imaging-Validation/actions/workflows/tests.yml)
+[![OS Tests](https://github.com/Shyon5/Synthetic-Imaging-Validation/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/Shyon5/Synthetic-Imaging-Validation/actions/workflows/tests.yml)
 
-`synthetic-imaging-validation` is a small, model-agnostic Python package for comparing real and synthetic medical images. It provides pairwise image similarity, intensity-distribution analysis, mask overlap and surface metrics, spatial plausibility checks, and feature-distribution metrics.
+`synthetic-imaging-validation` is a focused Python package for comparing real and synthetic medical images. It brings image similarity, intensity-distribution, segmentation, spatial, and feature-based metrics into one model-independent interface.
 
-The package does not generate images, prescribe a preprocessing pipeline, or bundle a feature encoder. Inputs and assumptions remain explicit so results can be reproduced across datasets and research groups.
+Validation remains separate from the code that generated the images. The package does not prescribe a preprocessing pipeline, assume a dataset layout, or bundle a feature encoder. Shapes, spacing, intensity ranges, and alignment requirements stay explicit so that the same evaluation can be reproduced on different datasets.
 
 ## Installation
 
-Create a Python 3.10, 3.11, or 3.12 environment and install the project locally:
+Python 3.10 through 3.14 are supported. The core test matrix covers every supported Python version on Ubuntu and representative configurations on Windows and macOS. NumPy 1.26 and 2.x are tested separately; the optional PyTorch metrics are tested on Ubuntu with Python 3.11.
+
+From a local checkout, install the core package with:
 
 ```bash
-python -m pip install -e .
+python -m pip install .
 ```
 
-For MS-SSIM support:
-
-```bash
-python -m pip install -e ".[torch]"
-```
-
-For development and tests:
+For development, use an editable install and include the test tools:
 
 ```bash
 python -m pip install -e ".[test]"
 ```
 
-Use `.[test,torch]` to include the optional MS-SSIM tests.
+Optional features are installed as extras:
 
-Core dependencies are NumPy 1.26, SciPy, scikit-image, and nibabel. NumPy 2.x is intentionally excluded from the first release while cross-platform compatibility is established. PyTorch and torchmetrics are optional and used only by MS-SSIM. Matplotlib is optional via the `viz` extra.
+```bash
+python -m pip install ".[torch]"       # MS-SSIM
+python -m pip install ".[viz]"         # plotting helpers
+python -m pip install -e ".[test,torch]"  # development with optional metric tests
+```
+
+### Dependencies
+
+The base installation is deliberately small:
+
+| Package | Supported versions | Used for |
+| --- | --- | --- |
+| NumPy | `>=1.26,<3.0` | Array conversion and numerical operations throughout the package |
+| SciPy | `>=1.13,<2.0` | Statistical distances, connected components, surface distances, and matrix operations |
+| scikit-image | `>=0.24,<1.0` | SSIM |
+| nibabel | `>=5.3,<6.0` | Reading NIfTI files and their spatial metadata |
+
+Both NumPy 1.26 and NumPy 2.x are supported. NumPy 1.26 is tested with Python 3.10–3.12; Python 3.13 and 3.14 use NumPy 2.x because NumPy 1.26 does not support those interpreters. The minimum SciPy, scikit-image, and nibabel versions were chosen from releases with NumPy 2 support.
+
+The optional extras are:
+
+| Extra | Packages | When it is needed |
+| --- | --- | --- |
+| `torch` | PyTorch `>=2.2,<3.0`, torchmetrics `>=1.3,<2.0` | MS-SSIM only |
+| `viz` | Matplotlib `>=3.8,<4.0` | Histogram and slice plotting helpers |
+| `test` | pytest `>=8.0,<10.0` | Running the test suite |
+
+PyTorch is not required for the core metrics. PyTorch tensors are accepted when PyTorch is already available and are converted internally to NumPy. `pyproject.toml` is the source of truth for dependency constraints; `requirements.txt` mirrors the core runtime dependencies for convenience.
 
 ## Quick start
 
@@ -63,7 +86,9 @@ hd95_mm = hausdorff_distance(
 )
 ```
 
-## Available metrics
+## What is included
+
+Metrics are grouped by the kind of comparison they make:
 
 - Image similarity: MAE, MSE, RMSE, NRMSE, PSNR, SSIM, optional adaptive MS-SSIM.
 - Distribution/statistics: histograms, mean/std/min/max/percentiles, Wasserstein-1, histogram KL divergence, histogram Jensen-Shannon divergence.
@@ -72,9 +97,9 @@ hd95_mm = hausdorff_distance(
 - Feature-based generative quality: Fréchet feature distance, KID, manifold precision/recall, RBF-MMD, and sliced Wasserstein distance.
 - Optional class-wise evaluation for paired metrics and independent real/synthetic cohorts.
 
-The Fréchet implementation currently operates on precomputed `[samples, features]` matrices and is valid for either 2D- or 3D-derived embeddings. No image/volume encoder is bundled yet, so it is not presented as canonical Inception FID or medical 3D-FID.
+The Fréchet implementation works on precomputed `[samples, features]` matrices. Those features may come from 2D images or 3D volumes, but the package does not currently provide the encoder. For that reason, the result is described as a Fréchet feature distance rather than canonical Inception FID or medical 3D-FID.
 
-See [docs/metrics.md](docs/metrics.md) for definitions, [docs/metric_selection.md](docs/metric_selection.md) for metric choice, [docs/grouped_metrics.md](docs/grouped_metrics.md) for class-wise evaluation, and [docs/dimensionality.md](docs/dimensionality.md) for the 2D/3D shape contract.
+For metric definitions and limitations, see [docs/metrics.md](docs/metrics.md). Practical guidance is collected in [docs/metric_selection.md](docs/metric_selection.md), while [docs/grouped_metrics.md](docs/grouped_metrics.md) covers class-wise evaluation and [docs/dimensionality.md](docs/dimensionality.md) explains the 2D/3D shape conventions.
 
 ## Supported inputs and conventions
 
@@ -85,38 +110,35 @@ See [docs/metrics.md](docs/metrics.md) for definitions, [docs/metric_selection.m
 - NIfTI `.nii` and `.nii.gz` files;
 - NumPy `.npy` and single-array `.npz` files.
 
-`load_directory` loads a sorted directory without guessing subject pairing. Array shape is never silently squeezed, permuted, resampled, or reoriented. NIfTI spacing follows array-axis order, and pair loading checks shape, spacing, and affine when both inputs contain that metadata.
+`load_directory` returns files in a stable sorted order, but it does not guess how subjects should be paired. Arrays are not silently squeezed, permuted, resampled, or reoriented. NIfTI spacing follows array-axis order; when both inputs carry spatial metadata, pair loading checks shape, spacing, and affine.
 
-All metrics reject empty numeric arrays and NaN/Inf values. Pairwise metrics reject incompatible shapes. Channel and batch axes must be supplied explicitly for SSIM/MS-SSIM. Mask metrics accept scalar 2D or 3D arrays and binarize with `values >= threshold`. The same implementations serve both dimensions; connected-component reports use area terminology in 2D and volume terminology in 3D.
+Empty arrays and values containing NaN or infinity are rejected with a clear error. Pairwise metrics also require matching shapes. Channel and batch axes must be given explicitly for SSIM and MS-SSIM. Mask metrics accept scalar 2D or 3D arrays and binarize them with `values >= threshold`. The same implementation handles both dimensions, using area terminology in 2D and volume terminology in 3D.
 
-Images must already be registered and resampled to a common grid before voxel-wise or surface comparison. Distribution-only comparisons do not require spatial alignment.
+Voxel-wise and surface metrics assume that the images have already been registered and resampled onto a common grid. Distribution-only metrics do not require spatial alignment.
 
 ## Command line
 
 ```bash
-python -m synthetic_imaging_validation.cli.validate \
-  --real path/to/real.nii.gz \
-  --synthetic path/to/synthetic.nii.gz \
-  --metrics psnr ssim wasserstein dice hausdorff95 \
-  --data-range 1.0 \
-  --output results.json
+synthetic-imaging-validate --real path/to/real.nii.gz --synthetic path/to/synthetic.nii.gz --metrics psnr ssim wasserstein dice hausdorff95 --data-range 1.0 --output results.json
 ```
 
-The installed `synthetic-imaging-validate` command is equivalent. Results may be written as JSON or long-form CSV. Use `--help` for mask thresholds, explicit spacing, border widths, and axis options.
+The module form, `python -m synthetic_imaging_validation.cli.validate`, is equivalent. Results can be written as JSON or long-form CSV. Run `synthetic-imaging-validate --help` to see the options for mask thresholds, spacing, border widths, and array axes.
 
 ## Examples and tests
 
-From the repository root:
+After installing the package in editable mode, run the examples from the repository root:
 
 ```bash
 python examples/basic_usage.py
 python examples/validate_2d_data.py
 python examples/validate_binary_masks.py
 python examples/validate_nifti_pair.py real.nii.gz synthetic.nii.gz
-pytest
+python -m pytest
 ```
 
-## Adding a metric
+## Contributing a metric
+
+New metrics should fit the existing input and validation conventions:
 
 1. Place it in the module matching its scientific role under `src/synthetic_imaging_validation/metrics/`.
 2. Reuse `to_numpy`, `validate_pair`, and `validate_spacing` instead of adding implicit conversions.
@@ -126,4 +148,4 @@ pytest
 
 ## Future Docker support
 
-The package and CLI have no local path assumptions and write only to user-selected destinations. A future release can add a minimal image and bind-mounted input/output convention without changing metric APIs. Other useful future work includes directory pairing manifests, optional resampling, confidence intervals, and validated medical-imaging encoders.
+Docker is intentionally out of scope for the first release. The package and CLI do not assume local paths and write only to destinations selected by the user, so container support can be added later without changing the metric APIs. Other likely additions are directory-pairing manifests, optional resampling, confidence intervals, and validated medical-imaging encoders.

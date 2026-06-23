@@ -7,12 +7,12 @@ name = "synthetic-imaging-validation"
 version = "0.1.0"
 description = "Reusable statistical and spatial validation metrics for synthetic medical imaging."
 readme = "README.md"
-requires-python = ">=3.10,<3.13"
+requires-python = ">=3.10,<3.15"
 dependencies = [
-    "numpy>=1.26,<2.0",
-    "scipy>=1.12,<2.0",
-    "scikit-image>=0.22,<1.0",
-    "nibabel>=5.2,<6.0",
+    "numpy>=1.26,<3.0",
+    "scipy>=1.13,<2.0",
+    "scikit-image>=0.24,<1.0",
+    "nibabel>=5.3,<6.0",
 ]
 classifiers = [
     "Development Status :: 3 - Alpha",
@@ -22,6 +22,8 @@ classifiers = [
     "Programming Language :: Python :: 3.10",
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
+    "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Operating System :: OS Independent",
     "Topic :: Scientific/Engineering :: Medical Science Apps.",
 ]
