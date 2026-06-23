@@ -2,7 +2,7 @@
 
 [![OS Tests](https://github.com/Shyon5/Synthetic-Imaging-Validation/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/Shyon5/Synthetic-Imaging-Validation/actions/workflows/tests.yml)
 
-The current test suite has 100% statement and branch coverage. The full threshold is enforced by CI across every supported Python version and operating system.
+The current test suite has 100% statement and branch coverage. The full threshold is enforced by CI across every supported Python version and runner platform.
 
 `synthetic-imaging-validation` is a focused Python package for comparing real and synthetic medical images. It brings image similarity, intensity-distribution, segmentation, spatial, and feature-based metrics into one model-independent interface.
 
@@ -10,7 +10,7 @@ Validation remains separate from the code that generated the images. The package
 
 ## Installation
 
-Python 3.9 through 3.14 are supported. Every version is tested on Ubuntu, Windows, and macOS with the complete test suite, including the optional PyTorch and plotting features. Python 3.9 is included for compatibility with existing research environments, although it is end-of-life upstream and should not be preferred for new installations.
+Python 3.9 through 3.14 are supported. Every version is tested with the complete suite, including the optional PyTorch and plotting features, on GitHub's `ubuntu-latest`, `windows-latest`, and `macos-latest` hosted runners. The matrix therefore tracks the latest runner image for each operating system; older OS releases are not tested. Python 3.9 is included for compatibility with existing research environments, although it is end-of-life upstream and should not be preferred for new installations.
 
 From a local checkout, install the core package with:
 
