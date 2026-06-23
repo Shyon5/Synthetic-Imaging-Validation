@@ -26,8 +26,10 @@ def zscore_normalize(values: Any, *, ddof: int = 0) -> np.ndarray:
     """Return zero-mean, unit-variance values; constants map to zeros."""
 
     array = to_numpy(values).astype(np.float64, copy=False)
-    std = float(np.std(array, ddof=int(ddof)))
-    if not np.isfinite(std) or std == 0.0:
+    resolved_ddof = int(ddof)
+    if resolved_ddof != ddof or resolved_ddof < 0 or resolved_ddof >= array.size:
+        raise ValueError("ddof must be an integer in [0, number of elements).")
+    std = float(np.std(array, ddof=resolved_ddof))
+    if std == 0.0:
         return np.zeros_like(array, dtype=np.float64)
     return (array - float(np.mean(array))) / std
-

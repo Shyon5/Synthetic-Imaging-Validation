@@ -110,3 +110,75 @@ def test_labels_must_be_explicit_one_dimensional_categories():
     with pytest.raises(ValueError, match="sample batch has 3"):
         paired_metrics_by_class(values, values, [0, 1], metrics=["mae"])
 
+
+@pytest.mark.parametrize("label", [None, np.nan, np.inf, ["unhashable"]])
+def test_invalid_class_labels_are_rejected(label):
+    values = np.zeros((1, 2, 2))
+    labels = np.empty(1, dtype=object)
+    labels[0] = label
+    with pytest.raises((TypeError, ValueError), match="Class labels"):
+        paired_metrics_by_class(values, values, labels, metrics="mae")
+
+
+def test_grouped_configuration_errors_are_clear():
+    values = np.zeros((2, 3, 3))
+    labels = [0, 1]
+    with pytest.raises(ValueError, match="batch_axis"):
+        paired_metrics_by_class(values, values, labels, metrics="mae", batch_axis=3)
+    with pytest.raises(ValueError, match="Shape mismatch"):
+        paired_metrics_by_class(values, np.zeros((3, 3, 3)), labels, metrics="mae")
+    with pytest.raises(ValueError, match="At least one class"):
+        paired_metrics_by_class(values, values, labels, metrics="mae", classes=[])
+    with pytest.raises(ValueError, match="not unique"):
+        paired_metrics_by_class(
+            values, values, labels, metrics="mae", class_names={0: "same", 1: "same"}
+        )
+    with pytest.raises(ValueError, match="empty display name"):
+        paired_metrics_by_class(values, values, labels, metrics="mae", class_names={0: ""})
+    with pytest.raises(ValueError, match="Unknown metrics"):
+        paired_metrics_by_class(values, values, labels, metrics=["unknown"])
+    with pytest.raises(ValueError, match="At least one metric"):
+        paired_metrics_by_class(values, values, labels, metrics=[])
+    with pytest.raises(TypeError, match="Metric callables"):
+        paired_metrics_by_class(values, values, labels, metrics={"bad": 1})
+    with pytest.raises(TypeError, match="must be a mapping"):
+        paired_metrics_by_class(values, values, labels, metrics="mae", metric_kwargs={"mae": 1})
+    with pytest.raises(ValueError, match="min_samples"):
+        paired_metrics_by_class(values, values, labels, metrics="mae", min_samples=0)
+
+
+def test_custom_metric_output_and_failure_context():
+    values = np.zeros((2, 3, 3))
+    labels = [0, 0]
+    with pytest.raises(TypeError, match="must return a scalar"):
+        paired_metrics_by_class(values, values, labels, metrics={"bad": lambda x, y: True})
+
+    def failing_metric(_real, _synthetic):
+        raise RuntimeError("broken metric")
+
+    with pytest.raises(ValueError, match="failed for class 0.*sample index 0"):
+        paired_metrics_by_class(values, values, labels, metrics={"broken": failing_metric})
+
+    report = distribution_metrics_by_class(
+        values,
+        values,
+        labels,
+        labels,
+        metrics={"summary": lambda real, synthetic: {"difference": np.float64(0)}},
+    )
+    assert report["0"]["metrics"]["summary"] == {"difference": 0.0}
+
+
+def test_distribution_group_errors_include_context():
+    values = np.zeros((2, 2))
+    labels = [0, 0]
+    with pytest.raises(ValueError, match="min_samples"):
+        distribution_metrics_by_class(values, values, labels, labels, metrics="wasserstein", min_samples=0)
+    with pytest.raises(ValueError, match="failed for class 0"):
+        distribution_metrics_by_class(
+            values,
+            values,
+            labels,
+            labels,
+            metrics={"broken": lambda real, synthetic: (_ for _ in ()).throw(RuntimeError("bad"))},
+        )
