@@ -2,6 +2,8 @@
 
 [![OS Tests](https://github.com/Shyon5/Synthetic-Imaging-Validation/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/Shyon5/Synthetic-Imaging-Validation/actions/workflows/tests.yml)
 
+The current test suite has 100% statement and branch coverage. The full threshold is enforced by CI across every supported Python version and operating system.
+
 `synthetic-imaging-validation` is a focused Python package for comparing real and synthetic medical images. It brings image similarity, intensity-distribution, segmentation, spatial, and feature-based metrics into one model-independent interface.
 
 Validation remains separate from the code that generated the images. The package does not prescribe a preprocessing pipeline, assume a dataset layout, or bundle a feature encoder. Shapes, spacing, intensity ranges, and alignment requirements stay explicit so that the same evaluation can be reproduced on different datasets.
@@ -139,7 +141,7 @@ python -m pytest
 To reproduce the coverage check used in CI:
 
 ```bash
-python -m pytest --cov --cov-report=term-missing --cov-fail-under=90
+python -m pytest --cov --cov-report=term-missing --cov-fail-under=100
 ```
 
 ## Contributing a metric

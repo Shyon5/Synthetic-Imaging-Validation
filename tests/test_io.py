@@ -69,6 +69,8 @@ def test_image_data_spacing_and_spatial_pair_validation():
         load_image(data, spacing=(1, 1))
 
     real = ImageData(array, spacing=(1.0, 1.0), affine=np.eye(4))
+    matching = ImageData(array.copy(), spacing=(1.0, 1.0), affine=np.eye(4))
+    assert load_pair(real, matching)[1].affine is not None
     different_spacing = ImageData(array.copy(), spacing=(1.0, 2.0), affine=np.eye(4))
     with pytest.raises(ValueError, match="Spacing mismatch"):
         load_pair(real, different_spacing)

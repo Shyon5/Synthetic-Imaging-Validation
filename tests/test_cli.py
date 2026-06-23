@@ -1,5 +1,8 @@
 import csv
 import json
+import runpy
+import sys
+import warnings
 
 import numpy as np
 import pytest
@@ -88,3 +91,18 @@ def test_main_prints_results_and_reports_user_errors(tmp_path, capsys):
     with pytest.raises(SystemExit) as exc_info:
         main(["--real", str(tmp_path / "missing.npy"), "--synthetic", str(path)])
     assert exc_info.value.code == 2
+
+
+def test_module_entrypoint(tmp_path, monkeypatch):
+    path = tmp_path / "image.npy"
+    np.save(path, np.zeros((8, 8), dtype=np.float32))
+    monkeypatch.setattr(
+        sys,
+        "argv",
+        ["validate", "--real", str(path), "--synthetic", str(path), "--metrics", "mae"],
+    )
+    with warnings.catch_warnings():
+        warnings.simplefilter("ignore", RuntimeWarning)
+        with pytest.raises(SystemExit) as exc_info:
+            runpy.run_module("synthetic_imaging_validation.cli.validate", run_name="__main__")
+    assert exc_info.value.code == 0

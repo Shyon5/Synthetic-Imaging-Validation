@@ -70,3 +70,4 @@ def test_histogram_divergence_parameters(function, kwargs, message):
 def test_constant_distributions_use_a_valid_shared_range():
     assert kl_divergence(np.ones(4), np.ones(4)) == pytest.approx(0.0)
     assert jensen_shannon_divergence(np.ones(4), np.ones(4)) == pytest.approx(0.0)
+    assert kl_divergence([0, 1], [0, 1], value_range=(0, 2)) == pytest.approx(0.0)
