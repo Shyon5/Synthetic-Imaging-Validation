@@ -219,6 +219,5 @@ def ms_ssim(
                 return float(value.item())
             except (ValueError, RuntimeError, AssertionError) as exc:
                 errors.append(str(exc))
-    detail = errors[-1] if errors else "no compatible configuration"
+    detail = errors[-1]
     raise ValueError(f"MS-SSIM could not be computed for shape {real_array.shape}: {detail}")
-

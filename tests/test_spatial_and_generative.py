@@ -1,6 +1,7 @@
 import numpy as np
 import pytest
 
+from synthetic_imaging_validation.metrics import generative
 from synthetic_imaging_validation.metrics.generative import (
     feature_precision_recall,
     frechet_distance,
@@ -107,3 +108,20 @@ def test_sliced_wasserstein_supports_different_sample_counts():
     second = sliced_wasserstein_distance(real, synthetic, num_projections=4, seed=7)
     assert first == second
     assert first > 0.0
+
+
+def test_frechet_handles_numerical_complex_roots(monkeypatch):
+    features = np.array([[0.0, 0.0], [1.0, 1.0], [2.0, 0.0]])
+
+    def negligible_imaginary(matrix):
+        return np.eye(matrix.shape[0], dtype=np.complex128) + 1e-10j
+
+    monkeypatch.setattr(generative.linalg, "sqrtm", negligible_imaginary)
+    assert np.isfinite(frechet_distance(features, features))
+
+    def significant_imaginary(matrix):
+        return np.eye(matrix.shape[0], dtype=np.complex128) * (1 + 1j)
+
+    monkeypatch.setattr(generative.linalg, "sqrtm", significant_imaginary)
+    with pytest.raises(ValueError, match="significant imaginary"):
+        frechet_distance(features, features)

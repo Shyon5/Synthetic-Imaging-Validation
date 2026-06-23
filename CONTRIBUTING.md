@@ -22,7 +22,13 @@ Install the development extras and run the same checks used in CI:
 
 ```bash
 python -m pip install -e ".[test,torch,viz]"
-python -m pytest --cov --cov-report=term-missing --cov-fail-under=90
+python -m pytest --cov --cov-report=term-missing --cov-fail-under=100
 ```
 
 Open a pull request into `main` and wait for the `Test suite` check before merging.
+
+## AI-assisted contributions
+
+AI tools may be used to assist development, but generated code and tests must be reviewed and understood by the contributor who submits them. That contributor remains responsible for correctness, licensing, reproducibility, and compliance with project policies. Do not provide private datasets, credentials, or confidential source code to an external AI service.
+
+Disclose material AI assistance in the pull request when required by an institution, funder, or project policy, or when the disclosure would help reviewers understand how a change was produced. Individual source and test files do not need an AI-generated label.

@@ -62,6 +62,14 @@ def test_ssim_window_and_axis_validation():
         ssim(np.zeros((2, 8, 8)), np.zeros((2, 8, 8)), batch_axis=0, channel_axis=0)
     with pytest.raises(ValueError, match="SSIM expects"):
         ssim(np.zeros((2, 3, 8, 8, 1)), np.zeros((2, 3, 8, 8, 1)), data_range=1.0)
+    batch_channels = np.zeros((2, 8, 8, 3), dtype=np.float32)
+    assert ssim(
+        batch_channels,
+        batch_channels,
+        data_range=1.0,
+        batch_axis=0,
+        channel_axis=3,
+    ) == pytest.approx(1.0)
 
 
 @pytest.mark.torch
@@ -96,3 +104,30 @@ def test_ms_ssim_axes_and_shape_validation():
         ms_ssim(images, images, batch_axis=0, channel_axis=0, data_range=1.0)
     with pytest.raises(ValueError, match="expects 2D or 3D"):
         ms_ssim(np.zeros(8), np.zeros(8), data_range=1.0)
+    batch_channels = np.zeros((2, 2, 64, 64), dtype=np.float32)
+    assert ms_ssim(
+        batch_channels,
+        batch_channels,
+        batch_axis=0,
+        channel_axis=1,
+        data_range=1.0,
+        max_scales=1,
+    ) == pytest.approx(1.0, abs=1e-6)
+
+
+@pytest.mark.torch
+def test_ms_ssim_reports_exhausted_adaptive_attempts(monkeypatch):
+    pytest.importorskip("torch")
+    image_module = pytest.importorskip("torchmetrics.functional.image")
+
+    def always_fail(*args, **kwargs):
+        raise ValueError("unsupported test configuration")
+
+    monkeypatch.setattr(
+        image_module,
+        "multiscale_structural_similarity_index_measure",
+        always_fail,
+    )
+    image = np.zeros((16, 16), dtype=np.float32)
+    with pytest.raises(ValueError, match="could not be computed.*unsupported test configuration"):
+        ms_ssim(image, image, data_range=1.0, max_scales=2)

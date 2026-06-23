@@ -61,6 +61,9 @@ def test_binarize_and_prepare_pair():
     assert real.dtype == np.float32
     np.testing.assert_array_equal(real, [0, 0.5, 1])
     np.testing.assert_array_equal(synthetic, [0, 1, 1])
+    unclipped_real, unclipped_synthetic = prepare_pair(values, values + 1)
+    np.testing.assert_array_equal(unclipped_real, values)
+    np.testing.assert_array_equal(unclipped_synthetic, values + 1)
     with pytest.raises(ValueError, match="finite.*high > low"):
         prepare_pair(values, values, clip=(1, 1))
 

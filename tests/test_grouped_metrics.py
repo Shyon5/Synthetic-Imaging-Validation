@@ -2,6 +2,7 @@ import numpy as np
 import pytest
 
 from synthetic_imaging_validation.metrics.grouped import (
+    _normalise_label,
     distribution_metrics_by_class,
     paired_metrics_by_class,
 )
@@ -182,3 +183,27 @@ def test_distribution_group_errors_include_context():
             labels,
             metrics={"broken": lambda real, synthetic: (_ for _ in ()).throw(RuntimeError("bad"))},
         )
+
+
+def test_builtin_mask_wrappers_and_numpy_scalar_labels():
+    mask = np.zeros((1, 8, 8), dtype=np.uint8)
+    mask[:, 2:6, 2:6] = 1
+    report = paired_metrics_by_class(
+        mask,
+        mask,
+        np.array([1]),
+        metrics=["hausdorff95", "measure_ratio"],
+    )
+    assert report["1"]["metrics"]["hausdorff95"]["mean"] == 0.0
+    assert report["1"]["metrics"]["measure_ratio"]["mean"] == 1.0
+    assert _normalise_label(np.int64(4)) == 4
+    with pytest.raises(ValueError, match="At least one metric"):
+        paired_metrics_by_class(mask, mask, [1], metrics={})
+
+
+@pytest.mark.torch
+def test_torch_class_labels_are_supported():
+    torch = pytest.importorskip("torch")
+    values = np.zeros((2, 3, 3))
+    report = paired_metrics_by_class(values, values, torch.tensor([0, 1]), metrics="mae")
+    assert set(report) == {"0", "1"}
