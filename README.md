@@ -8,7 +8,7 @@ Validation remains separate from the code that generated the images. The package
 
 ## Installation
 
-Python 3.10 through 3.14 are supported. The core test matrix covers every supported Python version on Ubuntu and representative configurations on Windows and macOS. NumPy 1.26 and 2.x are tested separately; the optional PyTorch metrics are tested on Ubuntu with Python 3.11.
+Python 3.9 through 3.14 are supported. Every version is tested on Ubuntu, Windows, and macOS with the complete test suite, including the optional PyTorch and plotting features. Python 3.9 is included for compatibility with existing research environments, although it is end-of-life upstream and should not be preferred for new installations.
 
 From a local checkout, install the core package with:
 
@@ -27,7 +27,7 @@ Optional features are installed as extras:
 ```bash
 python -m pip install ".[torch]"       # MS-SSIM
 python -m pip install ".[viz]"         # plotting helpers
-python -m pip install -e ".[test,torch]"  # development with optional metric tests
+python -m pip install -e ".[test,torch,viz]"  # development with the complete test suite
 ```
 
 ### Dependencies
@@ -49,7 +49,7 @@ The optional extras are:
 | --- | --- | --- |
 | `torch` | PyTorch `>=2.2,<3.0`, torchmetrics `>=1.3,<2.0` | MS-SSIM only |
 | `viz` | Matplotlib `>=3.8,<4.0` | Histogram and slice plotting helpers |
-| `test` | pytest `>=8.0,<10.0` | Running the test suite |
+| `test` | pytest `>=8.0,<10.0`, pytest-cov `>=5.0,<8.0` | Running the test suite and measuring coverage |
 
 PyTorch is not required for the core metrics. PyTorch tensors are accepted when PyTorch is already available and are converted internally to NumPy. `pyproject.toml` is the source of truth for dependency constraints; `requirements.txt` mirrors the core runtime dependencies for convenience.
 
@@ -134,6 +134,12 @@ python examples/validate_2d_data.py
 python examples/validate_binary_masks.py
 python examples/validate_nifti_pair.py real.nii.gz synthetic.nii.gz
 python -m pytest
+```
+
+To reproduce the coverage check used in CI:
+
+```bash
+python -m pytest --cov --cov-report=term-missing --cov-fail-under=90
 ```
 
 ## Contributing a metric
