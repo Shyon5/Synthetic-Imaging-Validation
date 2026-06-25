@@ -99,7 +99,7 @@ Metrics are grouped by the kind of comparison they make:
 
 The Fréchet implementation works on precomputed `[samples, features]` matrices. Those features may come from 2D images or 3D volumes, but the package does not currently provide the encoder. For that reason, the result is described as a Fréchet feature distance rather than canonical Inception FID or medical 3D-FID.
 
-For metric definitions and limitations, see [docs/metrics.md](docs/metrics.md). Practical guidance is collected in [docs/metric_selection.md](docs/metric_selection.md), while [docs/grouped_metrics.md](docs/grouped_metrics.md) covers class-wise evaluation and [docs/dimensionality.md](docs/dimensionality.md) explains the 2D/3D shape conventions.
+For metric definitions and limitations, see [docs/metrics.md](docs/metrics.md). Practical guidance is collected in [docs/metric_selection.md](docs/metric_selection.md). Input pairing is described in [docs/data_loading.md](docs/data_loading.md), while [docs/grouped_metrics.md](docs/grouped_metrics.md) covers class-wise evaluation and [docs/dimensionality.md](docs/dimensionality.md) explains the 2D/3D shape conventions.
 
 ## Supported inputs and conventions
 
@@ -110,7 +110,19 @@ For metric definitions and limitations, see [docs/metrics.md](docs/metrics.md). 
 - NIfTI `.nii` and `.nii.gz` files;
 - NumPy `.npy` and single-array `.npz` files.
 
-`load_directory` returns files in a stable sorted order, but it does not guess how subjects should be paired. Arrays are not silently squeezed, permuted, resampled, or reoriented. NIfTI spacing follows array-axis order; when both inputs carry spatial metadata, pair loading checks shape, spacing, and affine.
+For multiple files, the recommended layout is simple:
+
+```text
+validation_data/
+  real/
+    case_001.nii.gz
+    case_002.nii.gz
+  synthetic/
+    case_001.nii.gz
+    case_002.nii.gz
+```
+
+Directory pairing can match files by filename stem, or a CSV manifest can specify each real/synthetic pair explicitly. `load_directory` still returns files in a stable sorted order, but it does not guess subject pairing on its own. Arrays are not silently squeezed, permuted, resampled, or reoriented. NIfTI spacing follows array-axis order; when both inputs carry spatial metadata, pair loading checks shape, spacing, and affine.
 
 Empty arrays and values containing NaN or infinity are rejected with a clear error. Pairwise metrics also require matching shapes. Channel and batch axes must be given explicitly for SSIM and MS-SSIM. Mask metrics accept scalar 2D or 3D arrays and binarize them with `values >= threshold`. The same implementation handles both dimensions, using area terminology in 2D and volume terminology in 3D.
 
@@ -122,7 +134,19 @@ Voxel-wise and surface metrics assume that the images have already been register
 synthetic-imaging-validate --real path/to/real.nii.gz --synthetic path/to/synthetic.nii.gz --metrics psnr ssim wasserstein dice hausdorff95 --data-range 1.0 --output results.json
 ```
 
-The module form, `python -m synthetic_imaging_validation.cli.validate`, is equivalent. Results can be written as JSON or long-form CSV. Run `synthetic-imaging-validate --help` to see the options for mask thresholds, spacing, border widths, and array axes.
+For a directory pair:
+
+```bash
+synthetic-imaging-validate --real-dir validation_data/real --synthetic-dir validation_data/synthetic --pairing stem --metrics mae ssim wasserstein dice --output results.csv
+```
+
+For a manifest:
+
+```bash
+synthetic-imaging-validate --manifest validation_data/pairs.csv --key-column case_id --metrics mae ssim wasserstein dice --output results.json
+```
+
+The module form, `python -m synthetic_imaging_validation.cli.validate`, is equivalent. Results can be written as JSON or long-form CSV. Run `synthetic-imaging-validate --help` to see the options for mask thresholds, spacing, border widths, array axes, directory pairing, and manifest columns.
 
 ## Examples and tests
 
@@ -156,4 +180,4 @@ New metrics should fit the existing input and validation conventions:
 
 ## Future Docker support
 
-Docker is intentionally out of scope for the first release. The package and CLI do not assume local paths and write only to destinations selected by the user, so container support can be added later without changing the metric APIs. Other likely additions are directory-pairing manifests, optional resampling, confidence intervals, and validated medical-imaging encoders.
+Docker is intentionally out of scope for the first release. The package and CLI do not assume local paths and write only to destinations selected by the user, so container support can be added later without changing the metric APIs. Other likely additions are optional resampling, confidence intervals, and validated medical-imaging encoders.

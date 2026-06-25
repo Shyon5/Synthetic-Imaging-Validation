@@ -9,9 +9,12 @@ import pytest
 
 from synthetic_imaging_validation.cli.validate import (
     SUPPORTED_METRICS,
+    _input_mode,
     _json_safe,
+    _load_cli_pairs,
     _parser,
     _resolve_spacing,
+    _summarize_pair_metrics,
     _write_results,
     calculate_metrics,
     main,
@@ -68,6 +71,92 @@ def test_spacing_and_json_conversion_helpers():
     assert converted == {"items": [2, "Infinity", "-Infinity", None], "nested": [1]}
 
 
+def test_cli_input_mode_validation(tmp_path):
+    parser = _parser()
+    real = tmp_path / "real.npy"
+    synthetic = tmp_path / "synthetic.npy"
+    np.save(real, np.zeros((2, 2)))
+    np.save(synthetic, np.zeros((2, 2)))
+
+    assert _input_mode(parser.parse_args(["--real", str(real), "--synthetic", str(synthetic)])) == "files"
+    with pytest.raises(ValueError, match="File mode requires both"):
+        _input_mode(parser.parse_args(["--real", str(real)]))
+    with pytest.raises(ValueError, match="Directory mode requires both"):
+        _input_mode(parser.parse_args(["--real-dir", str(tmp_path)]))
+    with pytest.raises(ValueError, match="Choose exactly one"):
+        _input_mode(parser.parse_args([]))
+    with pytest.raises(ValueError, match="Choose exactly one"):
+        _input_mode(
+            parser.parse_args(
+                [
+                    "--real",
+                    str(real),
+                    "--synthetic",
+                    str(synthetic),
+                    "--manifest",
+                    str(tmp_path / "pairs.csv"),
+                ]
+            )
+        )
+
+
+def test_calculate_metrics_from_paired_directories_and_manifest(tmp_path):
+    real_dir = tmp_path / "real"
+    synthetic_dir = tmp_path / "synthetic"
+    real_dir.mkdir()
+    synthetic_dir.mkdir()
+    np.save(real_dir / "case_a.npy", np.zeros((2, 2), dtype=np.float32))
+    np.save(synthetic_dir / "case_a.npy", np.ones((2, 2), dtype=np.float32))
+    np.save(real_dir / "case_b.npy", np.ones((2, 2), dtype=np.float32))
+    np.save(synthetic_dir / "case_b.npy", np.ones((2, 2), dtype=np.float32))
+
+    directory_args = _parser().parse_args(
+        [
+            "--real-dir",
+            str(real_dir),
+            "--synthetic-dir",
+            str(synthetic_dir),
+            "--metrics",
+            "mae",
+            "mse",
+        ]
+    )
+    mode, pairs = _load_cli_pairs(directory_args)
+    assert mode == "directories"
+    assert [pair.key for pair in pairs] == ["case_a", "case_b"]
+    report = calculate_metrics(directory_args)
+    assert report["summary"]["count"] == 2
+    assert report["summary"]["metrics"]["mae"]["mean"] == 0.5
+    assert report["pairs"][0]["metrics"] == {"mae": 1.0, "mse": 1.0}
+
+    manifest = tmp_path / "pairs.csv"
+    manifest.write_text(
+        "case_id,real,synthetic\n"
+        f"first,{real_dir / 'case_a.npy'},{synthetic_dir / 'case_a.npy'}\n",
+        encoding="utf-8",
+    )
+    manifest_args = _parser().parse_args(
+        ["--manifest", str(manifest), "--key-column", "case_id", "--metrics", "mae"]
+    )
+    manifest_report = calculate_metrics(manifest_args)
+    assert manifest_report["pairs"][0]["key"] == "first"
+    assert manifest_report["pairs"][0]["metadata"] == {"case_id": "first"}
+
+
+def test_metric_summary_skips_non_finite_and_non_scalar_values():
+    summary = _summarize_pair_metrics(
+        [
+            {"mae": np.float32(1.0), "psnr": np.inf, "ok": True, "nested": {"dice": 0.5}},
+            {"mae": 3.0, "psnr": np.inf, "nested": {"dice": 1.0}, "items": [1, 2]},
+        ]
+    )
+    assert summary["count"] == 2
+    assert summary["metrics"]["mae"]["mean"] == 2.0
+    assert summary["metrics"]["nested.dice"]["max"] == 1.0
+    assert "psnr" not in summary["metrics"]
+    assert "items" not in summary["metrics"]
+
+
 def test_result_writers_support_json_and_csv(tmp_path):
     results = {"mae": 0.5, "nested": {"values": [1, 2], "score": 1.0}}
     json_path = tmp_path / "nested" / "results.json"
@@ -81,6 +170,27 @@ def test_result_writers_support_json_and_csv(tmp_path):
     assert ["nested.score", "1.0"] in rows
     with pytest.raises(ValueError, match="must end with"):
         _write_results(tmp_path / "results.txt", results)
+
+
+def test_pairwise_result_writer_supports_csv(tmp_path):
+    results = {
+        "pairs": [
+            {
+                "key": "case_a",
+                "real": "real/case_a.npy",
+                "synthetic": "synthetic/case_a.npy",
+                "metrics": {"mae": 0.5, "nested": {"dice": 1.0}},
+            }
+        ],
+        "summary": {"metrics": {"mae": {"count": 1, "mean": 0.5}}},
+    }
+    csv_path = tmp_path / "pairwise.csv"
+    _write_results(csv_path, results)
+    with csv_path.open(newline="", encoding="utf-8") as handle:
+        rows = list(csv.reader(handle))
+    assert rows[0] == ["scope", "key", "real", "synthetic", "metric", "value"]
+    assert ["pair", "case_a", "real/case_a.npy", "synthetic/case_a.npy", "nested.dice", "1.0"] in rows
+    assert ["summary", "", "", "", "mae.mean", "0.5"] in rows
 
 
 def test_main_prints_results_and_reports_user_errors(tmp_path, capsys):

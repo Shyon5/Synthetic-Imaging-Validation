@@ -1,6 +1,7 @@
 """Validation metrics for synthetic medical images and masks."""
 
-from .io.loading import ImageData, load_directory, load_image, load_pair
+from .io.loading import ImageData, is_supported_image_path, load_directory, load_image, load_pair
+from .io.pairing import ImagePair, image_file_key, load_manifest_pairs, load_paired_directories, pair_directory_files
 from .metrics.distribution import (
     compare_distributions,
     intensity_statistics,
@@ -35,6 +36,7 @@ from .metrics.segmentation import (
 
 __all__ = [
     "ImageData",
+    "ImagePair",
     "active_voxel_fraction",
     "average_surface_distance",
     "component_area_distribution",
@@ -51,17 +53,22 @@ __all__ = [
     "hausdorff_distance",
     "intensity_statistics",
     "iou",
+    "image_file_key",
+    "is_supported_image_path",
     "jensen_shannon_divergence",
     "kernel_inception_distance",
     "kl_divergence",
     "load_directory",
     "load_image",
+    "load_manifest_pairs",
     "load_pair",
+    "load_paired_directories",
     "mae",
     "mse",
     "ms_ssim",
     "nrmse",
     "paired_metrics_by_class",
+    "pair_directory_files",
     "psnr",
     "rmse",
     "rbf_mmd",

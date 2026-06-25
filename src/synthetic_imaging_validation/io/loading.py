@@ -11,6 +11,7 @@ import numpy as np
 from ..utils.checks import to_numpy, validate_pair, validate_spacing
 
 PathLike = Union[str, Path]
+SUPPORTED_ARRAY_SUFFIXES = {".npy", ".npz"}
 
 
 @dataclass(frozen=True)
@@ -30,6 +31,18 @@ class ImageData:
 def _is_nifti(path: Path) -> bool:
     name = path.name.lower()
     return name.endswith(".nii") or name.endswith(".nii.gz")
+
+
+def is_supported_image_path(path: PathLike) -> bool:
+    """Return ``True`` when ``path`` is a supported file input.
+
+    Supported file formats are NIfTI (``.nii`` and ``.nii.gz``), NumPy arrays
+    (``.npy``), and single-array or explicitly keyed NumPy archives (``.npz``).
+    Directories are intentionally not treated as image inputs.
+    """
+
+    candidate = Path(path)
+    return candidate.is_file() and (_is_nifti(candidate) or candidate.suffix.lower() in SUPPORTED_ARRAY_SUFFIXES)
 
 
 def _load_path(path: Path, *, npz_key: Optional[str]) -> ImageData:
@@ -138,6 +151,5 @@ def load_directory(directory: PathLike, *, recursive: bool = False) -> list[Imag
     if not root.is_dir():
         raise NotADirectoryError(f"Not a directory: {root}")
     iterator = root.rglob("*") if recursive else root.glob("*")
-    paths = [p for p in iterator if p.is_file() and (_is_nifti(p) or p.suffix.lower() in {".npy", ".npz"})]
+    paths = [p for p in iterator if is_supported_image_path(p)]
     return [load_image(path) for path in sorted(paths, key=lambda p: str(p).lower())]
-

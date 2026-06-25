@@ -1,4 +1,4 @@
-"""Minimal command-line validation of one aligned image or mask pair."""
+"""Command-line validation of aligned image or mask pairs."""
 
 from __future__ import annotations
 
@@ -11,6 +11,7 @@ from typing import Any, Optional, Sequence
 import numpy as np
 
 from ..io.loading import load_pair
+from ..io.pairing import ImagePair, image_file_key, load_manifest_pairs, load_paired_directories
 from ..metrics.distribution import jensen_shannon_divergence, kl_divergence, wasserstein_distance
 from ..metrics.image_similarity import mae, mse, ms_ssim, nrmse, psnr, rmse, ssim
 from ..metrics.segmentation import (
@@ -54,10 +55,32 @@ SUPPORTED_METRICS = (
 
 def _parser() -> argparse.ArgumentParser:
     parser = argparse.ArgumentParser(
-        description="Compare one aligned real/synthetic medical image pair."
+        description="Compare aligned real/synthetic medical image pairs."
     )
-    parser.add_argument("--real", required=True, help="Real .nii[.gz], .npy, or .npz file.")
-    parser.add_argument("--synthetic", required=True, help="Synthetic .nii[.gz], .npy, or .npz file.")
+    parser.add_argument("--real", help="Real .nii[.gz], .npy, or .npz file.")
+    parser.add_argument("--synthetic", help="Synthetic .nii[.gz], .npy, or .npz file.")
+    parser.add_argument("--real-dir", type=Path, help="Directory containing real files.")
+    parser.add_argument("--synthetic-dir", type=Path, help="Directory containing synthetic files.")
+    parser.add_argument("--manifest", type=Path, help="CSV manifest with real/synthetic file columns.")
+    parser.add_argument(
+        "--pairing",
+        choices=("stem", "sorted"),
+        default="stem",
+        help="Directory pairing rule: filename stem match (default) or alphabetical order.",
+    )
+    parser.add_argument("--recursive", action="store_true", help="Include nested files in directory mode.")
+    parser.add_argument("--real-column", default="real", help="Manifest column containing real image paths.")
+    parser.add_argument(
+        "--synthetic-column",
+        default="synthetic",
+        help="Manifest column containing synthetic image paths.",
+    )
+    parser.add_argument("--key-column", help="Optional manifest column used as the pair identifier.")
+    parser.add_argument(
+        "--base-dir",
+        type=Path,
+        help="Base directory for relative manifest paths. Defaults to the manifest directory.",
+    )
     parser.add_argument("--metrics", nargs="+", default=list(DEFAULT_METRICS), choices=SUPPORTED_METRICS)
     parser.add_argument("--output", type=Path, help="Optional .json or .csv result file.")
     parser.add_argument("--data-range", type=float, help="Known intensity range for PSNR/SSIM/MS-SSIM.")
@@ -87,16 +110,63 @@ def _resolve_spacing(explicit: Optional[Sequence[float]], metadata: Optional[Seq
     return None
 
 
-def calculate_metrics(args: argparse.Namespace) -> dict[str, Any]:
-    """Calculate requested CLI metrics and return a JSON-compatible dictionary."""
+def _input_mode(args: argparse.Namespace) -> str:
+    modes = []
+    if args.manifest is not None:
+        modes.append("manifest")
+    if args.real_dir is not None or args.synthetic_dir is not None:
+        if args.real_dir is None or args.synthetic_dir is None:
+            raise ValueError("Directory mode requires both --real-dir and --synthetic-dir.")
+        modes.append("directories")
+    if args.real is not None or args.synthetic is not None:
+        if not args.real or not args.synthetic:
+            raise ValueError("File mode requires both --real and --synthetic.")
+        modes.append("files")
+    if len(modes) != 1:
+        raise ValueError(
+            "Choose exactly one input mode: --real/--synthetic, "
+            "--real-dir/--synthetic-dir, or --manifest."
+        )
+    return modes[0]
 
-    real_data, synthetic_data = load_pair(
-        args.real,
-        args.synthetic,
-        require_spatial_match=not args.allow_spatial_mismatch,
+
+def _load_cli_pairs(args: argparse.Namespace) -> tuple[str, list[ImagePair]]:
+    mode = _input_mode(args)
+    require_spatial_match = not args.allow_spatial_mismatch
+    if mode == "files":
+        real_data, synthetic_data = load_pair(
+            args.real,
+            args.synthetic,
+            require_spatial_match=require_spatial_match,
+        )
+        return mode, [
+            ImagePair(
+                key=image_file_key(args.real),
+                real=real_data,
+                synthetic=synthetic_data,
+            )
+        ]
+    if mode == "directories":
+        return mode, load_paired_directories(
+            args.real_dir,
+            args.synthetic_dir,
+            pairing=args.pairing,
+            recursive=args.recursive,
+            require_spatial_match=require_spatial_match,
+        )
+    return mode, load_manifest_pairs(
+        args.manifest,
+        real_column=args.real_column,
+        synthetic_column=args.synthetic_column,
+        key_column=args.key_column,
+        base_dir=args.base_dir,
+        require_spatial_match=require_spatial_match,
     )
-    real, synthetic = real_data.array, synthetic_data.array
-    spacing = _resolve_spacing(args.spacing, real_data.spacing, real.ndim)
+
+
+def _calculate_pair_metrics(pair: ImagePair, args: argparse.Namespace) -> dict[str, Any]:
+    real, synthetic = pair.real.array, pair.synthetic.array
+    spacing = _resolve_spacing(args.spacing, pair.real.spacing, real.ndim)
     results: dict[str, Any] = {}
     requested = set(args.metrics)
     simple = {"mae": mae, "mse": mse, "rmse": rmse, "nrmse": nrmse}
@@ -170,7 +240,59 @@ def calculate_metrics(args: argparse.Namespace) -> dict[str, Any]:
             "real": border_statistics(real, threshold=args.threshold, border_width=width),
             "synthetic": border_statistics(synthetic, threshold=args.threshold, border_width=width),
         }
-    return _json_safe(results)
+    return results
+
+
+def _path_text(path: Optional[Path]) -> Optional[str]:
+    return None if path is None else str(path)
+
+
+def _is_finite_number(value: Any) -> bool:
+    if isinstance(value, np.generic):
+        value = value.item()
+    return isinstance(value, (int, float)) and not isinstance(value, bool) and bool(np.isfinite(value))
+
+
+def _summarize_pair_metrics(metrics_by_pair: list[dict[str, Any]]) -> dict[str, Any]:
+    buckets: dict[str, list[float]] = {}
+    for metrics in metrics_by_pair:
+        for name, value in _flatten(metrics):
+            if _is_finite_number(value):
+                buckets.setdefault(name, []).append(float(value))
+
+    summary = {"count": len(metrics_by_pair), "metrics": {}}
+    for name in sorted(buckets):
+        values = np.asarray(buckets[name], dtype=np.float64)
+        summary["metrics"][name] = {
+            "count": int(values.size),
+            "mean": float(np.mean(values)),
+            "std": float(np.std(values)),
+            "min": float(np.min(values)),
+            "max": float(np.max(values)),
+        }
+    return summary
+
+
+def calculate_metrics(args: argparse.Namespace) -> dict[str, Any]:
+    """Calculate requested CLI metrics and return a JSON-compatible dictionary."""
+
+    mode, pairs = _load_cli_pairs(args)
+    if mode == "files":
+        return _json_safe(_calculate_pair_metrics(pairs[0], args))
+
+    metrics_by_pair = [_calculate_pair_metrics(pair, args) for pair in pairs]
+    records = []
+    for pair, metrics in zip(pairs, metrics_by_pair):
+        records.append(
+            {
+                "key": pair.key,
+                "real": _path_text(pair.real.path),
+                "synthetic": _path_text(pair.synthetic.path),
+                "metadata": pair.metadata or {},
+                "metrics": metrics,
+            }
+        )
+    return _json_safe({"pairs": records, "summary": _summarize_pair_metrics(metrics_by_pair)})
 
 
 def _json_safe(value: Any) -> Any:
@@ -198,15 +320,38 @@ def _flatten(value: Any, prefix: str = "") -> list[tuple[str, Any]]:
     return rows
 
 
+def _write_pairwise_csv(handle: Any, results: dict[str, Any]) -> None:
+    writer = csv.writer(handle)
+    writer.writerow(["scope", "key", "real", "synthetic", "metric", "value"])
+    for record in results["pairs"]:
+        for metric, value in _flatten(record["metrics"]):
+            writer.writerow(
+                [
+                    "pair",
+                    record.get("key", ""),
+                    record.get("real") or "",
+                    record.get("synthetic") or "",
+                    metric,
+                    value,
+                ]
+            )
+    for metric, stats in results.get("summary", {}).get("metrics", {}).items():
+        for stat_name, value in stats.items():
+            writer.writerow(["summary", "", "", "", f"{metric}.{stat_name}", value])
+
+
 def _write_results(path: Path, results: dict[str, Any]) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.suffix.lower() == ".json":
         path.write_text(json.dumps(results, indent=2, sort_keys=True) + "\n", encoding="utf-8")
     elif path.suffix.lower() == ".csv":
         with path.open("w", newline="", encoding="utf-8") as handle:
-            writer = csv.writer(handle)
-            writer.writerow(["metric", "value"])
-            writer.writerows(_flatten(results))
+            if "pairs" in results:
+                _write_pairwise_csv(handle, results)
+            else:
+                writer = csv.writer(handle)
+                writer.writerow(["metric", "value"])
+                writer.writerows(_flatten(results))
     else:
         raise ValueError("--output must end with .json or .csv.")
 
