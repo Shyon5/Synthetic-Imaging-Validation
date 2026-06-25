@@ -4,6 +4,38 @@ The package keeps data loading explicit on purpose. It will read common image
 files and check that paired inputs are compatible, but it will not try to guess
 your dataset structure from arbitrary folders.
 
+## Expected preprocessing
+
+This package validates prepared data. It does not perform registration,
+resampling, reorientation, intensity normalization, clipping, denoising, mask
+cleanup, or automatic threshold selection.
+
+Before using paired spatial metrics, make sure that each real/synthetic pair:
+
+- refers to the same case or target;
+- has the same shape;
+- is defined on the same voxel or pixel grid;
+- uses the same orientation and field of view;
+- has compatible spacing and affine metadata when using NIfTI files;
+- uses comparable intensity scaling when intensity metrics are reported;
+- uses masks that can be thresholded with the same rule.
+
+For distribution-only image metrics, voxel-wise alignment is not required, but
+the preprocessing protocol should still be shared across real and synthetic
+cohorts. For example, intensity clipping, normalization, reconstruction scale,
+and background handling should be consistent before comparing histograms or
+intensity statistics.
+
+For unpaired mask analysis, a one-to-one target is not needed. The cohort should
+still use consistent orientation, spacing, field of view, connectivity, and mask
+thresholding; otherwise morphology and location summaries can reflect
+preprocessing differences rather than generation quality.
+
+If a project needs registration, resampling, harmonization, or mask cleanup,
+treat that as a separate preprocessing step before running this validator. A
+future version may add optional preprocessing utilities, but the current package
+keeps those choices outside the metric calculation.
+
 The simplest convention is to keep real and synthetic files in two separate
 directories:
 

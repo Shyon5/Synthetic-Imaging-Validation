@@ -126,7 +126,7 @@ Directory pairing can match files by filename stem, or a CSV manifest can specif
 
 Empty arrays and values containing NaN or infinity are rejected with a clear error. Pairwise metrics also require matching shapes. Channel and batch axes must be given explicitly for SSIM and MS-SSIM. Mask metrics accept scalar 2D or 3D arrays and binarize them with `values >= threshold`. The same implementation handles both dimensions, using area terminology in 2D and volume terminology in 3D.
 
-Voxel-wise and surface metrics assume that the images have already been registered and resampled onto a common grid. Distribution-only metrics do not require spatial alignment.
+Voxel-wise and surface metrics assume that the images have already been registered and resampled onto a common grid. Distribution-only metrics do not require spatial alignment, but real and synthetic cohorts should still share the same preprocessing protocol. See [docs/data_loading.md](docs/data_loading.md) for the expected input preparation.
 
 ## Command line
 
