@@ -77,6 +77,10 @@ def _parser() -> argparse.ArgumentParser:
     )
     parser.add_argument("--key-column", help="Optional manifest column used as the pair identifier.")
     parser.add_argument(
+        "--group-by",
+        help="Optional manifest metadata column used to summarize paired metrics by group.",
+    )
+    parser.add_argument(
         "--base-dir",
         type=Path,
         help="Base directory for relative manifest paths. Defaults to the manifest directory.",
@@ -273,10 +277,32 @@ def _summarize_pair_metrics(metrics_by_pair: list[dict[str, Any]]) -> dict[str, 
     return summary
 
 
+def _summarize_grouped_pair_metrics(records: list[dict[str, Any]], group_by: str) -> dict[str, Any]:
+    groups: dict[str, list[dict[str, Any]]] = {}
+    for record in records:
+        metadata = record.get("metadata") or {}
+        if group_by not in metadata or str(metadata[group_by]).strip() == "":
+            raise ValueError(
+                f"--group-by column '{group_by}' is missing for pair '{record.get('key', '')}'."
+            )
+        group = str(metadata[group_by])
+        groups.setdefault(group, []).append(record["metrics"])
+
+    return {
+        "column": group_by,
+        "groups": {
+            group: _summarize_pair_metrics(metrics)
+            for group, metrics in groups.items()
+        },
+    }
+
+
 def calculate_metrics(args: argparse.Namespace) -> dict[str, Any]:
     """Calculate requested CLI metrics and return a JSON-compatible dictionary."""
 
     mode, pairs = _load_cli_pairs(args)
+    if args.group_by and mode != "manifest":
+        raise ValueError("--group-by is available only with --manifest.")
     if mode == "files":
         return _json_safe(_calculate_pair_metrics(pairs[0], args))
 
@@ -292,7 +318,13 @@ def calculate_metrics(args: argparse.Namespace) -> dict[str, Any]:
                 "metrics": metrics,
             }
         )
-    return _json_safe({"pairs": records, "summary": _summarize_pair_metrics(metrics_by_pair)})
+    results: dict[str, Any] = {
+        "pairs": records,
+        "summary": _summarize_pair_metrics(metrics_by_pair),
+    }
+    if args.group_by:
+        results["grouped_summary"] = _summarize_grouped_pair_metrics(records, args.group_by)
+    return _json_safe(results)
 
 
 def _json_safe(value: Any) -> Any:
@@ -338,6 +370,12 @@ def _write_pairwise_csv(handle: Any, results: dict[str, Any]) -> None:
     for metric, stats in results.get("summary", {}).get("metrics", {}).items():
         for stat_name, value in stats.items():
             writer.writerow(["summary", "", "", "", f"{metric}.{stat_name}", value])
+    for group, summary in results.get("grouped_summary", {}).get("groups", {}).items():
+        for metric, stats in summary.get("metrics", {}).items():
+            for stat_name, value in stats.items():
+                writer.writerow(
+                    ["group", str(group), "", "", f"{metric}.{stat_name}", value]
+                )
 
 
 def _write_results(path: Path, results: dict[str, Any]) -> None:

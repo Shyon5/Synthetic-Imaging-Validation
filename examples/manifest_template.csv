@@ -1,0 +1,3 @@
+case_id,real,synthetic,label,split
+case_001,../validation_data/real/case_001.nii.gz,../validation_data/synthetic/case_001.nii.gz,low,test
+case_002,../validation_data/real/case_002.nii.gz,../validation_data/synthetic/case_002.nii.gz,high,test

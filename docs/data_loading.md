@@ -74,10 +74,14 @@ convincing while measuring the wrong thing.
 If real and synthetic files cannot share the same names, use a CSV manifest:
 
 ```csv
-case_id,real,synthetic,class
+case_id,real,synthetic,label
 case_001,real/patient_A.nii.gz,synthetic/sample_0001.nii.gz,low
 case_002,real/patient_B.nii.gz,synthetic/sample_0002.nii.gz,high
 ```
+
+The repository also includes a small editable template at
+[`examples/manifest_template.csv`](../examples/manifest_template.csv). It is not
+meant to run as-is; copy it and replace the paths with your own files.
 
 Then run:
 
@@ -102,14 +106,27 @@ synthetic-imaging-validate \
   --key-column subject_id
 ```
 
-Extra manifest columns are kept as metadata in the JSON output. They are not
-used automatically for class-wise analysis yet, but keeping them in the manifest
-is a good habit because it makes later grouping easier.
+Extra manifest columns are kept as metadata in the JSON output. They do not
+change the result unless you explicitly request grouping. For example, a
+`label` column can be summarized with:
+
+```bash
+synthetic-imaging-validate \
+  --manifest study_validation/pairs.csv \
+  --key-column case_id \
+  --group-by label \
+  --metrics mae ssim dice \
+  --output results.json
+```
+
+This adds a `grouped_summary` block for the paired metrics. If `--group-by` is
+not provided, `label` remains metadata only.
 
 For directory and manifest inputs, JSON output contains a `pairs` list with one
 record per real/synthetic pair and a `summary` block with finite scalar metric
-means, standard deviations, minima, and maxima. CSV output uses one row per pair
-and metric, followed by summary rows.
+means, standard deviations, minima, and maxima. When grouping is requested, JSON
+also contains `grouped_summary`. CSV output uses one row per pair and metric,
+followed by global and grouped summary rows.
 
 ## Pairing by sorted order
 

@@ -131,8 +131,9 @@ def test_calculate_metrics_from_paired_directories_and_manifest(tmp_path):
 
     manifest = tmp_path / "pairs.csv"
     manifest.write_text(
-        "case_id,real,synthetic\n"
-        f"first,{real_dir / 'case_a.npy'},{synthetic_dir / 'case_a.npy'}\n",
+        "case_id,real,synthetic,label\n"
+        f"first,{real_dir / 'case_a.npy'},{synthetic_dir / 'case_a.npy'},low\n"
+        f"second,{real_dir / 'case_b.npy'},{synthetic_dir / 'case_b.npy'},high\n",
         encoding="utf-8",
     )
     manifest_args = _parser().parse_args(
@@ -140,7 +141,53 @@ def test_calculate_metrics_from_paired_directories_and_manifest(tmp_path):
     )
     manifest_report = calculate_metrics(manifest_args)
     assert manifest_report["pairs"][0]["key"] == "first"
-    assert manifest_report["pairs"][0]["metadata"] == {"case_id": "first"}
+    assert manifest_report["pairs"][0]["metadata"] == {"case_id": "first", "label": "low"}
+    assert "grouped_summary" not in manifest_report
+
+    grouped_args = _parser().parse_args(
+        [
+            "--manifest",
+            str(manifest),
+            "--key-column",
+            "case_id",
+            "--group-by",
+            "label",
+            "--metrics",
+            "mae",
+        ]
+    )
+    grouped_report = calculate_metrics(grouped_args)
+    assert grouped_report["grouped_summary"]["column"] == "label"
+    assert grouped_report["grouped_summary"]["groups"]["low"]["metrics"]["mae"]["mean"] == 1.0
+    assert grouped_report["grouped_summary"]["groups"]["high"]["metrics"]["mae"]["mean"] == 0.0
+
+    bad_group_args = _parser().parse_args(
+        [
+            "--manifest",
+            str(manifest),
+            "--key-column",
+            "case_id",
+            "--group-by",
+            "missing",
+            "--metrics",
+            "mae",
+        ]
+    )
+    with pytest.raises(ValueError, match="--group-by column 'missing' is missing"):
+        calculate_metrics(bad_group_args)
+
+    directory_group_args = _parser().parse_args(
+        [
+            "--real-dir",
+            str(real_dir),
+            "--synthetic-dir",
+            str(synthetic_dir),
+            "--group-by",
+            "label",
+        ]
+    )
+    with pytest.raises(ValueError, match="only with --manifest"):
+        calculate_metrics(directory_group_args)
 
 
 def test_metric_summary_skips_non_finite_and_non_scalar_values():
@@ -183,6 +230,10 @@ def test_pairwise_result_writer_supports_csv(tmp_path):
             }
         ],
         "summary": {"metrics": {"mae": {"count": 1, "mean": 0.5}}},
+        "grouped_summary": {
+            "column": "label",
+            "groups": {"low": {"metrics": {"mae": {"count": 1, "mean": 0.5}}}},
+        },
     }
     csv_path = tmp_path / "pairwise.csv"
     _write_results(csv_path, results)
@@ -191,6 +242,7 @@ def test_pairwise_result_writer_supports_csv(tmp_path):
     assert rows[0] == ["scope", "key", "real", "synthetic", "metric", "value"]
     assert ["pair", "case_a", "real/case_a.npy", "synthetic/case_a.npy", "nested.dice", "1.0"] in rows
     assert ["summary", "", "", "", "mae.mean", "0.5"] in rows
+    assert ["group", "low", "", "", "mae.mean", "0.5"] in rows
 
 
 def test_main_prints_results_and_reports_user_errors(tmp_path, capsys):

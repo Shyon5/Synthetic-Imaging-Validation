@@ -146,7 +146,9 @@ For a manifest:
 synthetic-imaging-validate --manifest validation_data/pairs.csv --key-column case_id --metrics mae ssim wasserstein dice --output results.json
 ```
 
-The module form, `python -m synthetic_imaging_validation.cli.validate`, is equivalent. Results can be written as JSON or long-form CSV. Run `synthetic-imaging-validate --help` to see the options for mask thresholds, spacing, border widths, array axes, directory pairing, and manifest columns.
+Add `--group-by label` when a manifest column should be used for grouped paired-metric summaries. Without `--group-by`, extra manifest columns remain metadata only.
+
+The module form, `python -m synthetic_imaging_validation.cli.validate`, is equivalent. Results can be written as JSON or long-form CSV. Run `synthetic-imaging-validate --help` to see the options for mask thresholds, spacing, border widths, array axes, directory pairing, manifest columns, and grouped summaries.
 
 ## Examples and tests
 
