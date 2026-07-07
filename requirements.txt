@@ -2,3 +2,4 @@ numpy>=1.26,<3.0
 scipy>=1.13,<2.0
 scikit-image>=0.24,<1.0
 nibabel>=5.3,<6.0
+tqdm>=4.66,<5.0

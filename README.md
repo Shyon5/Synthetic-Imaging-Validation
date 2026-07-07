@@ -62,6 +62,7 @@ The base installation is deliberately small:
 | SciPy | `>=1.13,<2.0` | Statistical distances, connected components, surface distances, and matrix operations |
 | scikit-image | `>=0.24,<1.0` | SSIM |
 | nibabel | `>=5.3,<6.0` | Reading NIfTI files and their spatial metadata |
+| tqdm | `>=4.66,<5.0` | Optional CLI progress bars via `--show-progress` |
 
 Both NumPy 1.26 and NumPy 2.x are supported. NumPy 1.26 is tested with Python 3.10–3.12; Python 3.13 and 3.14 use NumPy 2.x because NumPy 1.26 does not support those interpreters. The minimum SciPy, scikit-image, and nibabel versions were chosen from releases with NumPy 2 support.
 
@@ -165,7 +166,7 @@ synthetic-imaging-validate --real-dir validation_data/real --synthetic-dir valid
 For a manifest:
 
 ```bash
-synthetic-imaging-validate --manifest validation_data/pairs.csv --key-column case_id --metrics mae ssim wasserstein dice --output results.json
+synthetic-imaging-validate --manifest validation_data/pairs.csv --key-column case_id --metrics mae ssim wasserstein dice --output results.json --show-progress
 ```
 
 Use `--output-json results.json --output-csv results.csv` when you want both
@@ -174,7 +175,7 @@ single JSON or CSV file.
 
 Add `--group-by label` when a manifest column should be used for grouped paired-metric summaries. Without `--group-by`, extra manifest columns remain metadata only.
 
-The module form, `python -m synthetic_imaging_validation.cli.validate`, is equivalent. Results can be written as JSON, long-form CSV, or both. Run `synthetic-imaging-validate --help` to see the options for mask thresholds, spacing, border widths, array axes, directory pairing, manifest columns, and grouped summaries.
+The module form, `python -m synthetic_imaging_validation.cli.validate`, is equivalent. Results can be written as JSON, long-form CSV, or both. Use `--show-progress` to display a tqdm progress bar while paired cases are evaluated. Run `synthetic-imaging-validate --help` to see the options for mask thresholds, spacing, border widths, array axes, directory pairing, manifest columns, and grouped summaries.
 
 ## Examples and tests
 

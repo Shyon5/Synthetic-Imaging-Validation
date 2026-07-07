@@ -130,6 +130,21 @@ def test_calculate_metrics_from_paired_directories_and_manifest(tmp_path):
     assert report["summary"]["metrics"]["mae"]["mean"] == 0.5
     assert report["pairs"][0]["metrics"] == {"mae": 1.0, "mse": 1.0}
 
+    progress_args = _parser().parse_args(
+        [
+            "--real-dir",
+            str(real_dir),
+            "--synthetic-dir",
+            str(synthetic_dir),
+            "--metrics",
+            "mae",
+            "--show-progress",
+        ]
+    )
+    progress_report = calculate_metrics(progress_args)
+    assert progress_report["summary"]["count"] == 2
+    assert progress_report["summary"]["metrics"]["mae"]["mean"] == 0.5
+
     manifest = tmp_path / "pairs.csv"
     manifest.write_text(
         "case_id,real,synthetic,label\n"

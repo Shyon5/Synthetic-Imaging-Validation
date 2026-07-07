@@ -6,9 +6,10 @@ import argparse
 import csv
 import json
 from pathlib import Path
-from typing import Any, Optional, Sequence
+from typing import Any, Iterable, Optional, Sequence
 
 import numpy as np
+from tqdm.auto import tqdm
 
 from ..io.loading import load_pair
 from ..io.pairing import ImagePair, image_file_key, load_manifest_pairs, load_paired_directories
@@ -100,6 +101,11 @@ def _parser() -> argparse.ArgumentParser:
         "--allow-spatial-mismatch",
         action="store_true",
         help="Skip NIfTI spacing/affine checks. Shape checks still apply.",
+    )
+    parser.add_argument(
+        "--show-progress",
+        action="store_true",
+        help="Show a progress bar while evaluating real/synthetic pairs.",
     )
     return parser
 
@@ -299,6 +305,12 @@ def _summarize_grouped_pair_metrics(records: list[dict[str, Any]], group_by: str
     }
 
 
+def _iter_pairs_for_metrics(pairs: list[ImagePair], show_progress: bool) -> Iterable[ImagePair]:
+    if show_progress:
+        return tqdm(pairs, desc="Validating pairs", unit="pair")
+    return pairs
+
+
 def calculate_metrics(args: argparse.Namespace) -> dict[str, Any]:
     """Calculate requested CLI metrics and return a JSON-compatible dictionary."""
 
@@ -306,11 +318,14 @@ def calculate_metrics(args: argparse.Namespace) -> dict[str, Any]:
     if args.group_by and mode != "manifest":
         raise ValueError("--group-by is available only with --manifest.")
     if mode == "files":
-        return _json_safe(_calculate_pair_metrics(pairs[0], args))
+        pair = next(iter(_iter_pairs_for_metrics(pairs, args.show_progress)))
+        return _json_safe(_calculate_pair_metrics(pair, args))
 
-    metrics_by_pair = [_calculate_pair_metrics(pair, args) for pair in pairs]
+    metrics_by_pair = []
     records = []
-    for pair, metrics in zip(pairs, metrics_by_pair):
+    for pair in _iter_pairs_for_metrics(pairs, args.show_progress):
+        metrics = _calculate_pair_metrics(pair, args)
+        metrics_by_pair.append(metrics)
         records.append(
             {
                 "key": pair.key,

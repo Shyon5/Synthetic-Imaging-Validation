@@ -59,7 +59,8 @@ synthetic-imaging-validate \
   --synthetic-dir study_validation/synthetic \
   --pairing stem \
   --metrics mae ssim wasserstein dice \
-  --output results.csv
+  --output results.csv \
+  --show-progress
 ```
 
 `stem` means “remove the image suffix and match the remaining filename”. For
@@ -90,7 +91,8 @@ synthetic-imaging-validate \
   --manifest study_validation/pairs.csv \
   --key-column case_id \
   --metrics mae ssim wasserstein dice \
-  --output results.json
+  --output results.json \
+  --show-progress
 ```
 
 If you want both the nested JSON report and the spreadsheet-friendly CSV table
@@ -102,7 +104,8 @@ synthetic-imaging-validate \
   --key-column case_id \
   --metrics mae ssim wasserstein dice \
   --output-json results.json \
-  --output-csv results.csv
+  --output-csv results.csv \
+  --show-progress
 ```
 
 By default, manifest paths are resolved relative to the manifest file. If you
@@ -129,7 +132,8 @@ synthetic-imaging-validate \
   --group-by label \
   --metrics mae ssim dice \
   --output-json results.json \
-  --output-csv results.csv
+  --output-csv results.csv \
+  --show-progress
 ```
 
 This adds a `grouped_summary` block for the paired metrics. If `--group-by` is
@@ -140,6 +144,10 @@ record per real/synthetic pair and a `summary` block with finite scalar metric
 means, standard deviations, minima, and maxima. When grouping is requested, JSON
 also contains `grouped_summary`. CSV output uses one row per pair and metric,
 followed by global and grouped summary rows.
+
+Use `--show-progress` when evaluating several pairs and you want a tqdm progress
+bar in the terminal. The progress bar is written to standard error, while JSON
+results continue to be printed to standard output.
 
 ## Pairing by sorted order
 
