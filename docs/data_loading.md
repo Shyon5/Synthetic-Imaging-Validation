@@ -93,6 +93,18 @@ synthetic-imaging-validate \
   --output results.json
 ```
 
+If you want both the nested JSON report and the spreadsheet-friendly CSV table
+from the same calculation, request both outputs explicitly:
+
+```bash
+synthetic-imaging-validate \
+  --manifest study_validation/pairs.csv \
+  --key-column case_id \
+  --metrics mae ssim wasserstein dice \
+  --output-json results.json \
+  --output-csv results.csv
+```
+
 By default, manifest paths are resolved relative to the manifest file. If you
 prefer paths relative to another folder, pass `--base-dir`.
 
@@ -116,7 +128,8 @@ synthetic-imaging-validate \
   --key-column case_id \
   --group-by label \
   --metrics mae ssim dice \
-  --output results.json
+  --output-json results.json \
+  --output-csv results.csv
 ```
 
 This adds a `grouped_summary` block for the paired metrics. If `--group-by` is

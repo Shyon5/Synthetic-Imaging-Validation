@@ -13,6 +13,7 @@ from synthetic_imaging_validation.cli.validate import (
     _json_safe,
     _load_cli_pairs,
     _parser,
+    _requested_outputs,
     _resolve_spacing,
     _summarize_pair_metrics,
     _write_results,
@@ -219,6 +220,60 @@ def test_result_writers_support_json_and_csv(tmp_path):
         _write_results(tmp_path / "results.txt", results)
 
 
+def test_requested_outputs_support_single_and_dual_output_modes(tmp_path):
+    parser = _parser()
+    real = tmp_path / "real.npy"
+    synthetic = tmp_path / "synthetic.npy"
+    np.save(real, np.zeros((2, 2)))
+    np.save(synthetic, np.zeros((2, 2)))
+
+    args = parser.parse_args(
+        [
+            "--real",
+            str(real),
+            "--synthetic",
+            str(synthetic),
+            "--output",
+            str(tmp_path / "legacy.json"),
+            "--output-json",
+            str(tmp_path / "results.json"),
+            "--output-csv",
+            str(tmp_path / "results.csv"),
+        ]
+    )
+    assert _requested_outputs(args) == [
+        tmp_path / "legacy.json",
+        tmp_path / "results.json",
+        tmp_path / "results.csv",
+    ]
+
+    bad_json_args = parser.parse_args(
+        [
+            "--real",
+            str(real),
+            "--synthetic",
+            str(synthetic),
+            "--output-json",
+            str(tmp_path / "results.csv"),
+        ]
+    )
+    with pytest.raises(ValueError, match="--output-json"):
+        _requested_outputs(bad_json_args)
+
+    bad_csv_args = parser.parse_args(
+        [
+            "--real",
+            str(real),
+            "--synthetic",
+            str(synthetic),
+            "--output-csv",
+            str(tmp_path / "results.json"),
+        ]
+    )
+    with pytest.raises(ValueError, match="--output-csv"):
+        _requested_outputs(bad_csv_args)
+
+
 def test_pairwise_result_writer_supports_csv(tmp_path):
     results = {
         "pairs": [
@@ -250,6 +305,31 @@ def test_main_prints_results_and_reports_user_errors(tmp_path, capsys):
     np.save(path, np.zeros((8, 8), dtype=np.float32))
     assert main(["--real", str(path), "--synthetic", str(path), "--metrics", "mae"]) == 0
     assert json.loads(capsys.readouterr().out) == {"mae": 0.0}
+
+    json_path = tmp_path / "results.json"
+    csv_path = tmp_path / "results.csv"
+    assert (
+        main(
+            [
+                "--real",
+                str(path),
+                "--synthetic",
+                str(path),
+                "--metrics",
+                "mae",
+                "--output-json",
+                str(json_path),
+                "--output-csv",
+                str(csv_path),
+            ]
+        )
+        == 0
+    )
+    assert json.loads(json_path.read_text(encoding="utf-8")) == {"mae": 0.0}
+    with csv_path.open(newline="", encoding="utf-8") as handle:
+        assert ["mae", "0.0"] in list(csv.reader(handle))
+    capsys.readouterr()
+
     with pytest.raises(SystemExit) as exc_info:
         main(["--real", str(tmp_path / "missing.npy"), "--synthetic", str(path)])
     assert exc_info.value.code == 2

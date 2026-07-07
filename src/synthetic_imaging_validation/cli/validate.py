@@ -86,7 +86,9 @@ def _parser() -> argparse.ArgumentParser:
         help="Base directory for relative manifest paths. Defaults to the manifest directory.",
     )
     parser.add_argument("--metrics", nargs="+", default=list(DEFAULT_METRICS), choices=SUPPORTED_METRICS)
-    parser.add_argument("--output", type=Path, help="Optional .json or .csv result file.")
+    parser.add_argument("--output", type=Path, help="Optional single .json or .csv result file.")
+    parser.add_argument("--output-json", type=Path, help="Optional JSON result file.")
+    parser.add_argument("--output-csv", type=Path, help="Optional CSV result file.")
     parser.add_argument("--data-range", type=float, help="Known intensity range for PSNR/SSIM/MS-SSIM.")
     parser.add_argument("--threshold", type=float, default=0.5, help="Mask threshold (default: 0.5).")
     parser.add_argument("--bins", type=int, default=64, help="Histogram bins for KL/JS (default: 64).")
@@ -394,14 +396,36 @@ def _write_results(path: Path, results: dict[str, Any]) -> None:
         raise ValueError("--output must end with .json or .csv.")
 
 
+def _requested_outputs(args: argparse.Namespace) -> list[Path]:
+    """Return all result files requested by the CLI.
+
+    ``--output`` is kept for backward compatibility and accepts either JSON or CSV.
+    ``--output-json`` and ``--output-csv`` are format-specific helpers that allow
+    both files to be written from a single metric calculation.
+    """
+
+    outputs = []
+    if args.output:
+        outputs.append(args.output)
+    if args.output_json:
+        if args.output_json.suffix.lower() != ".json":
+            raise ValueError("--output-json must end with .json.")
+        outputs.append(args.output_json)
+    if args.output_csv:
+        if args.output_csv.suffix.lower() != ".csv":
+            raise ValueError("--output-csv must end with .csv.")
+        outputs.append(args.output_csv)
+    return outputs
+
+
 def main(argv: Optional[Sequence[str]] = None) -> int:
     """CLI entry point."""
 
     args = _parser().parse_args(argv)
     try:
         results = calculate_metrics(args)
-        if args.output:
-            _write_results(args.output, results)
+        for output in _requested_outputs(args):
+            _write_results(output, results)
         print(json.dumps(results, indent=2, sort_keys=True))
     except (FileNotFoundError, ImportError, KeyError, TypeError, ValueError) as exc:
         _parser().error(str(exc))

@@ -37,6 +37,7 @@ reports/
 results/
 results.json
 results.csv
+demo_validation/
 
 # Local datasets and medical-imaging files
 data/
