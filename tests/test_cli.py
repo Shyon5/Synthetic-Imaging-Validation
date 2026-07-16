@@ -9,11 +9,13 @@ import pytest
 
 from synthetic_imaging_validation.cli.validate import (
     SUPPORTED_METRICS,
+    _calculate_metrics_for_pairs,
     _input_mode,
     _json_safe,
     _load_cli_pairs,
     _parser,
     _requested_outputs,
+    _resolve_num_workers,
     _resolve_spacing,
     _summarize_pair_metrics,
     _write_results,
@@ -204,6 +206,81 @@ def test_calculate_metrics_from_paired_directories_and_manifest(tmp_path):
     )
     with pytest.raises(ValueError, match="only with --manifest"):
         calculate_metrics(directory_group_args)
+
+
+def test_parallel_pair_metric_calculation_matches_sequential(tmp_path, monkeypatch):
+    real_dir = tmp_path / "real"
+    synthetic_dir = tmp_path / "synthetic"
+    real_dir.mkdir()
+    synthetic_dir.mkdir()
+    for index in range(4):
+        real = np.full((3, 3), index, dtype=np.float32)
+        synthetic = real + 1
+        np.save(real_dir / f"case_{index}.npy", real)
+        np.save(synthetic_dir / f"case_{index}.npy", synthetic)
+
+    sequential_args = _parser().parse_args(
+        [
+            "--real-dir",
+            str(real_dir),
+            "--synthetic-dir",
+            str(synthetic_dir),
+            "--metrics",
+            "mae",
+            "mse",
+        ]
+    )
+    parallel_args = _parser().parse_args(
+        [
+            "--real-dir",
+            str(real_dir),
+            "--synthetic-dir",
+            str(synthetic_dir),
+            "--metrics",
+            "mae",
+            "mse",
+            "--num-workers",
+            "2",
+        ]
+    )
+    progress_args = _parser().parse_args(
+        [
+            "--real-dir",
+            str(real_dir),
+            "--synthetic-dir",
+            str(synthetic_dir),
+            "--metrics",
+            "mae",
+            "mse",
+            "--num-workers",
+            "2",
+            "--show-progress",
+        ]
+    )
+
+    sequential_report = calculate_metrics(sequential_args)
+    assert calculate_metrics(parallel_args) == sequential_report
+    assert calculate_metrics(progress_args) == sequential_report
+
+    mode, pairs = _load_cli_pairs(sequential_args)
+    assert mode == "directories"
+    delattr(sequential_args, "num_workers")
+    assert _calculate_metrics_for_pairs(pairs, sequential_args) == [
+        {"mae": 1.0, "mse": 1.0},
+        {"mae": 1.0, "mse": 1.0},
+        {"mae": 1.0, "mse": 1.0},
+        {"mae": 1.0, "mse": 1.0},
+    ]
+
+    assert _resolve_num_workers(1, len(pairs)) == 1
+    assert _resolve_num_workers(8, len(pairs)) == len(pairs)
+    assert _resolve_num_workers(3, 1) == 1
+    monkeypatch.setattr("synthetic_imaging_validation.evaluation.os.cpu_count", lambda: 3)
+    assert _resolve_num_workers(0, len(pairs)) == 3
+    monkeypatch.setattr("synthetic_imaging_validation.evaluation.os.cpu_count", lambda: None)
+    assert _resolve_num_workers(0, len(pairs)) == 1
+    with pytest.raises(ValueError, match="--num-workers"):
+        _resolve_num_workers(-1, len(pairs))
 
 
 def test_metric_summary_skips_non_finite_and_non_scalar_values():

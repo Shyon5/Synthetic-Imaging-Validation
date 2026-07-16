@@ -149,6 +149,39 @@ Use `--show-progress` when evaluating several pairs and you want a tqdm progress
 bar in the terminal. The progress bar is written to standard error, while JSON
 results continue to be printed to standard output.
 
+## Parallel evaluation
+
+Directory and manifest runs can evaluate different real/synthetic pairs in
+parallel:
+
+```bash
+synthetic-imaging-validate \
+  --manifest study_validation/pairs.csv \
+  --key-column case_id \
+  --metrics mae rmse ssim wasserstein \
+  --output-csv results.csv \
+  --num-workers 4 \
+  --show-progress
+```
+
+The default is `--num-workers 1`, which keeps the original sequential behavior.
+Use `--num-workers 0` to use the available CPU cores, capped by the number of
+pairs. The output order is still the input order, so CSV and JSON files remain
+easy to compare across runs.
+
+Parallelization happens at the pair level: one worker calculates the requested
+metrics for one real/synthetic pair at a time. It does not split a single large
+volume across workers. This keeps the implementation simple and reproducible,
+and it avoids changing the metric functions themselves.
+
+The CLI uses threads rather than separate processes. For this workload that is
+usually the better first choice because arrays do not need to be copied between
+processes, and many NumPy, SciPy, scikit-image, and PyTorch operations release
+the Python GIL internally. On a small number of tiny files, `--num-workers 1`
+may be just as fast because thread scheduling has some overhead. For larger
+cohorts, start with `--num-workers 4` or `--num-workers 0` and compare wall
+time on your own machine.
+
 ## Pairing by sorted order
 
 There is also a `sorted` directory mode:
@@ -169,6 +202,7 @@ For shared project work, `stem` pairing or a manifest is safer.
 The same tools are available from Python:
 
 ```python
+from synthetic_imaging_validation import evaluate_pairs
 from synthetic_imaging_validation.io import load_manifest_pairs, load_paired_directories
 from synthetic_imaging_validation.metrics.image_similarity import mae
 
@@ -176,6 +210,13 @@ pairs = load_paired_directories("study_validation/real", "study_validation/synth
 
 for pair in pairs:
     print(pair.key, mae(pair.real.array, pair.synthetic.array))
+
+
+def metric_set(pair):
+    return {"mae": mae(pair.real.array, pair.synthetic.array)}
+
+
+records = evaluate_pairs(pairs, metric_set, num_workers=4, show_progress=True)
 ```
 
 For a manifest:

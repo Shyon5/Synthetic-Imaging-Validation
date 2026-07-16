@@ -160,7 +160,7 @@ synthetic-imaging-validate --real path/to/real.nii.gz --synthetic path/to/synthe
 For a directory pair:
 
 ```bash
-synthetic-imaging-validate --real-dir validation_data/real --synthetic-dir validation_data/synthetic --pairing stem --metrics mae ssim wasserstein dice --output results.csv
+synthetic-imaging-validate --real-dir validation_data/real --synthetic-dir validation_data/synthetic --pairing stem --metrics mae ssim wasserstein dice --output results.csv --num-workers 4
 ```
 
 For a manifest:
@@ -175,7 +175,21 @@ single JSON or CSV file.
 
 Add `--group-by label` when a manifest column should be used for grouped paired-metric summaries. Without `--group-by`, extra manifest columns remain metadata only.
 
-The module form, `python -m synthetic_imaging_validation.cli.validate`, is equivalent. Results can be written as JSON, long-form CSV, or both. Use `--show-progress` to display a tqdm progress bar while paired cases are evaluated. Run `synthetic-imaging-validate --help` to see the options for mask thresholds, spacing, border widths, array axes, directory pairing, manifest columns, and grouped summaries.
+The module form, `python -m synthetic_imaging_validation.cli.validate`, is equivalent. Results can be written as JSON, long-form CSV, or both. Use `--show-progress` to display a tqdm progress bar while paired cases are evaluated.
+
+For directory and manifest runs, `--num-workers N` parallelizes metric
+calculation across real/synthetic pairs while keeping the output order stable.
+The default is `--num-workers 1`, which is the original sequential behavior.
+Use `--num-workers 0` to use the available CPU cores, capped by the number of
+pairs. Parallel execution is thread-based to avoid copying large image arrays
+between worker processes, which keeps it portable across Windows, Linux, and
+macOS. It is most useful for many cases or moderately expensive metrics; for a
+handful of small arrays, sequential execution may be just as fast.
+
+The same pair-level execution helper is available from Python through
+`evaluate_pairs(pairs, metric_function, num_workers=4, show_progress=True)`.
+
+Run `synthetic-imaging-validate --help` to see the options for mask thresholds, spacing, border widths, array axes, directory pairing, manifest columns, grouped summaries, and parallel execution.
 
 ## Examples and tests
 

@@ -1,5 +1,6 @@
 """Validation metrics for synthetic medical images and masks."""
 
+from .evaluation import evaluate_pairs, parallel_map, resolve_num_workers
 from .io.loading import ImageData, is_supported_image_path, load_directory, load_image, load_pair
 from .io.pairing import ImagePair, image_file_key, load_manifest_pairs, load_paired_directories, pair_directory_files
 from .metrics.distribution import (
@@ -46,6 +47,7 @@ __all__ = [
     "connected_component_statistics",
     "dice",
     "distribution_metrics_by_class",
+    "evaluate_pairs",
     "feature_precision_recall",
     "foreground_fraction",
     "foreground_measure_ratio",
@@ -69,7 +71,9 @@ __all__ = [
     "nrmse",
     "paired_metrics_by_class",
     "pair_directory_files",
+    "parallel_map",
     "psnr",
+    "resolve_num_workers",
     "rmse",
     "rbf_mmd",
     "sliced_wasserstein_distance",

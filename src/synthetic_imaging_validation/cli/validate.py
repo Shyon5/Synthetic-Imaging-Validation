@@ -6,11 +6,11 @@ import argparse
 import csv
 import json
 from pathlib import Path
-from typing import Any, Iterable, Optional, Sequence
+from typing import Any, Optional, Sequence
 
 import numpy as np
-from tqdm.auto import tqdm
 
+from ..evaluation import parallel_map, resolve_num_workers
 from ..io.loading import load_pair
 from ..io.pairing import ImagePair, image_file_key, load_manifest_pairs, load_paired_directories
 from ..metrics.distribution import jensen_shannon_divergence, kl_divergence, wasserstein_distance
@@ -106,6 +106,15 @@ def _parser() -> argparse.ArgumentParser:
         "--show-progress",
         action="store_true",
         help="Show a progress bar while evaluating real/synthetic pairs.",
+    )
+    parser.add_argument(
+        "--num-workers",
+        type=int,
+        default=1,
+        help=(
+            "Number of worker threads used for pair-level metric calculation. "
+            "Use 1 for sequential execution (default), or 0 to use available CPU cores."
+        ),
     )
     return parser
 
@@ -305,10 +314,35 @@ def _summarize_grouped_pair_metrics(records: list[dict[str, Any]], group_by: str
     }
 
 
-def _iter_pairs_for_metrics(pairs: list[ImagePair], show_progress: bool) -> Iterable[ImagePair]:
-    if show_progress:
-        return tqdm(pairs, desc="Validating pairs", unit="pair")
-    return pairs
+def _resolve_num_workers(requested: int, num_pairs: int) -> int:
+    """Resolve the effective number of workers for pair-level metric execution."""
+
+    try:
+        return resolve_num_workers(requested, num_pairs)
+    except ValueError as exc:
+        raise ValueError(str(exc).replace("num_workers", "--num-workers")) from exc
+
+
+def _calculate_metrics_for_pairs(
+    pairs: list[ImagePair],
+    args: argparse.Namespace,
+) -> list[dict[str, Any]]:
+    """Calculate metrics for all pairs, optionally in parallel.
+
+    Parallel execution is done per real/synthetic pair and preserves the input
+    order. Threads are used instead of processes to avoid copying large image
+    arrays between workers, which is especially important on Windows.
+    """
+
+    workers = _resolve_num_workers(getattr(args, "num_workers", 1), len(pairs))
+    return parallel_map(
+        pairs,
+        lambda pair: _calculate_pair_metrics(pair, args),
+        num_workers=workers,
+        show_progress=args.show_progress,
+        progress_description="Validating pairs",
+        progress_unit="pair",
+    )
 
 
 def calculate_metrics(args: argparse.Namespace) -> dict[str, Any]:
@@ -318,14 +352,11 @@ def calculate_metrics(args: argparse.Namespace) -> dict[str, Any]:
     if args.group_by and mode != "manifest":
         raise ValueError("--group-by is available only with --manifest.")
     if mode == "files":
-        pair = next(iter(_iter_pairs_for_metrics(pairs, args.show_progress)))
-        return _json_safe(_calculate_pair_metrics(pair, args))
+        return _json_safe(_calculate_metrics_for_pairs(pairs, args)[0])
 
-    metrics_by_pair = []
+    metrics_by_pair = _calculate_metrics_for_pairs(pairs, args)
     records = []
-    for pair in _iter_pairs_for_metrics(pairs, args.show_progress):
-        metrics = _calculate_pair_metrics(pair, args)
-        metrics_by_pair.append(metrics)
+    for pair, metrics in zip(pairs, metrics_by_pair):
         records.append(
             {
                 "key": pair.key,
