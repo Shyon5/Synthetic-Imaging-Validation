@@ -48,7 +48,7 @@ where = ["src"]
 addopts = "-ra"
 testpaths = ["tests"]
 markers = [
-    "torch: tests requiring the optional PyTorch dependencies",
+    "torch: tests requiring PyTorch inputs or the optional TorchMetrics reference backend",
 ]
 
 [tool.coverage.run]

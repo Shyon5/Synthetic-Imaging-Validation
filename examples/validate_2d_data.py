@@ -2,7 +2,14 @@
 
 import numpy as np
 
-from synthetic_imaging_validation import foreground_fraction, foreground_measure_ratio, mae, psnr, ssim
+from synthetic_imaging_validation import (
+    foreground_fraction,
+    foreground_measure_ratio,
+    mae,
+    ms_ssim,
+    psnr,
+    ssim,
+)
 from synthetic_imaging_validation.metrics.distribution import wasserstein_distance
 from synthetic_imaging_validation.metrics.segmentation import (
     connected_component_statistics,
@@ -19,6 +26,7 @@ print("2D image metrics")
 print("MAE:", mae(real_image, synthetic_image))
 print("PSNR:", psnr(real_image, synthetic_image, data_range=1.0))
 print("SSIM:", ssim(real_image, synthetic_image, data_range=1.0))
+print("MS-SSIM:", ms_ssim(real_image, synthetic_image, data_range=1.0))
 print("Wasserstein:", wasserstein_distance(real_image, synthetic_image))
 
 reference_mask = np.zeros((128, 128), dtype=np.uint8)
@@ -34,4 +42,3 @@ print("Area ratio:", foreground_measure_ratio(synthetic_mask, reference_mask))
 print("Foreground fraction:", foreground_fraction(synthetic_mask))
 print("Hausdorff:", hausdorff_distance(synthetic_mask, reference_mask, spacing=spacing))
 print("Components:", connected_component_statistics(synthetic_mask, spacing=spacing))
-

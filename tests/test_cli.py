@@ -24,10 +24,7 @@ from synthetic_imaging_validation.cli.validate import (
 )
 
 
-@pytest.mark.torch
 def test_calculate_metrics_exercises_every_cli_metric(tmp_path):
-    pytest.importorskip("torch")
-    pytest.importorskip("torchmetrics")
     image = np.zeros((128, 128), dtype=np.float32)
     image[32:96, 32:96] = 1.0
     real_path = tmp_path / "real.npy"
@@ -72,6 +69,32 @@ def test_spacing_and_json_conversion_helpers():
         {"items": (np.int64(2), np.float64(np.inf), -np.inf, np.nan), "nested": [1]}
     )
     assert converted == {"items": [2, "Infinity", "-Infinity", None], "nested": [1]}
+
+
+def test_cli_forwards_the_ms_ssim_backend(tmp_path, monkeypatch):
+    path = tmp_path / "image.npy"
+    np.save(path, np.zeros((16, 16), dtype=np.float32))
+    observed = {}
+
+    def fake_ms_ssim(real, synthetic, **kwargs):
+        observed.update(kwargs)
+        return 0.5
+
+    monkeypatch.setattr("synthetic_imaging_validation.cli.validate.ms_ssim", fake_ms_ssim)
+    args = _parser().parse_args(
+        [
+            "--real",
+            str(path),
+            "--synthetic",
+            str(path),
+            "--metrics",
+            "ms_ssim",
+            "--ms-ssim-backend",
+            "torchmetrics",
+        ]
+    )
+    assert calculate_metrics(args) == {"ms_ssim": 0.5}
+    assert observed["backend"] == "torchmetrics"
 
 
 def test_cli_input_mode_validation(tmp_path):

@@ -8,7 +8,7 @@ Validation remains separate from the code that generated the images. The package
 
 ## Installation
 
-Python 3.9 through 3.14 are supported. Every version is tested with the complete suite, including the optional PyTorch and plotting features, on GitHub's `ubuntu-latest`, `windows-latest`, and `macos-latest` hosted runners. The matrix therefore tracks the latest runner image for each operating system; older OS releases are not tested. Python 3.9 is included for compatibility with existing research environments, although it is end-of-life upstream and should not be preferred for new installations.
+Python 3.9 through 3.14 are supported. The base package is tested on every supported Python version using GitHub's `ubuntu-latest`, `windows-latest`, and `macos-latest` hosted runners. The matrix therefore tracks the latest runner image for each operating system; older OS releases are not tested. The optional TorchMetrics compatibility backend is checked separately on Ubuntu. Python 3.9 is included for compatibility with existing research environments, although it is end-of-life upstream and should not be preferred for new installations.
 
 From a local checkout, install the core package with:
 
@@ -25,14 +25,16 @@ python -m pip install -e ".[test]"
 Optional features are installed as extras:
 
 ```bash
-python -m pip install ".[torch]"       # MS-SSIM
+python -m pip install ".[torch]"       # optional TorchMetrics MS-SSIM reference backend
 python -m pip install ".[viz]"         # plotting helpers
 python -m pip install -e ".[test,torch,viz]"  # development with the complete test suite
 ```
 
-The `torch` extra does not choose a CPU or GPU build by itself. If the backend
-matters, install PyTorch first from the appropriate PyTorch wheel index, then
-install this package. For a CPU-only environment:
+MS-SSIM is part of the base installation and does not require PyTorch. The
+`torch` extra retains the previous TorchMetrics implementation as an optional
+reference backend. It does not choose a CPU or GPU build by itself. If that
+backend matters, install PyTorch first from the appropriate PyTorch wheel
+index, then install this package. For a CPU-only environment:
 
 ```bash
 python -m pip install torch --index-url https://download.pytorch.org/whl/cpu
@@ -49,8 +51,8 @@ python -m pip install torch --index-url https://download.pytorch.org/whl/cu128
 python -m pip install -e ".[torch]"
 ```
 
-CPU-only PyTorch is enough for the included metrics; GPU support is
-only useful if you expect heavier PyTorch-based metrics or larger workloads.
+CPU-only PyTorch is enough for the reference backend. GPU support is only
+useful if you expect to add heavier PyTorch-based metrics or larger workloads.
 
 ### Dependencies
 
@@ -59,29 +61,44 @@ The base installation is deliberately small:
 | Package | Supported versions | Used for |
 | --- | --- | --- |
 | NumPy | `>=1.26,<3.0` | Array conversion and numerical operations throughout the package |
-| SciPy | `>=1.13,<2.0` | Statistical distances, connected components, surface distances, and matrix operations |
+| SciPy | `>=1.13,<2.0` | Native MS-SSIM, statistical distances, connected components, surface distances, and matrix operations |
 | scikit-image | `>=0.24,<1.0` | SSIM |
 | nibabel | `>=5.3,<6.0` | Reading NIfTI files and their spatial metadata |
 | tqdm | `>=4.66,<5.0` | Optional CLI progress bars via `--show-progress` |
 
-Both NumPy 1.26 and NumPy 2.x are supported. NumPy 1.26 is tested with Python 3.10–3.12; Python 3.13 and 3.14 use NumPy 2.x because NumPy 1.26 does not support those interpreters. The minimum SciPy, scikit-image, and nibabel versions were chosen from releases with NumPy 2 support.
+Both NumPy 1.26 and NumPy 2.x are supported. NumPy 1.26 has a dedicated compatibility job on Python 3.11; Python 3.13 and 3.14 use NumPy 2.x because NumPy 1.26 does not support those interpreters. The minimum SciPy, scikit-image, and nibabel versions were chosen from releases with NumPy 2 support.
 
 The optional extras are:
 
 | Extra | Packages | When it is needed |
 | --- | --- | --- |
-| `torch` | PyTorch `>=2.2,<3.0`, torchmetrics `>=1.3,<2.0` | MS-SSIM only |
+| `torch` | PyTorch `>=2.2,<3.0`, torchmetrics `>=1.3,<2.0` | Optional MS-SSIM reference backend and compatibility checks |
 | `viz` | Matplotlib `>=3.8,<4.0` | Histogram and slice plotting helpers |
 | `test` | pytest `>=8.0,<10.0`, pytest-cov `>=5.0,<8.0` | Running the test suite and measuring coverage |
 
-PyTorch is not required for the core metrics. PyTorch tensors are accepted when PyTorch is already available and are converted internally to NumPy. `pyproject.toml` is the source of truth for dependency constraints; `requirements.txt` mirrors the core runtime dependencies for convenience.
+PyTorch is not required for any core metric. PyTorch tensors are accepted when PyTorch is already available and are converted internally to NumPy. `pyproject.toml` is the source of truth for dependency constraints; `requirements.txt` mirrors the core runtime dependencies for convenience.
+
+### MS-SSIM backends
+
+`ms_ssim()` uses the lightweight `numpy` backend by default. It reproduces the
+Gaussian filtering, reflection padding, scale weights, stride-two pooling, and
+adaptive scale/kernel selection used by the earlier TorchMetrics implementation.
+The two backends are expected to agree within `1e-5`; bit-for-bit equality is
+not expected because their floating-point operations are executed by different
+numerical libraries.
+
+The earlier implementation remains available with
+`ms_ssim(..., backend="torchmetrics")` or the CLI option
+`--ms-ssim-backend torchmetrics`. It is retained to make comparisons with
+previous results straightforward, but it may be removed in a future release
+once the native backend has had sufficient use and independent validation.
 
 ## Quick start
 
 ```python
 import numpy as np
 
-from synthetic_imaging_validation import mae, psnr, ssim
+from synthetic_imaging_validation import mae, ms_ssim, psnr, ssim
 from synthetic_imaging_validation.metrics.distribution import wasserstein_distance
 
 real = np.zeros((64, 64), dtype=np.float32)
@@ -91,6 +108,7 @@ synthetic[20:30, 20:30] = 0.1
 print(mae(real, synthetic))
 print(psnr(real, synthetic, data_range=1.0))
 print(ssim(real, synthetic, data_range=1.0))
+print(ms_ssim(real, synthetic, data_range=1.0))
 print(wasserstein_distance(real, synthetic))
 ```
 
@@ -113,7 +131,7 @@ hd95_mm = hausdorff_distance(
 
 Metrics are grouped by the kind of comparison they make:
 
-- Image similarity: MAE, MSE, RMSE, NRMSE, PSNR, SSIM, optional adaptive MS-SSIM.
+- Image similarity: MAE, MSE, RMSE, NRMSE, PSNR, SSIM, and adaptive MS-SSIM.
 - Distribution/statistics: histograms, mean/std/min/max/percentiles, Wasserstein-1, histogram KL divergence, histogram Jensen-Shannon divergence.
 - Segmentation: Dice, IoU, foreground fraction, area/volume ratio, connected-component area/volume distributions, Hausdorff/HD95, average and summary contour/surface distances.
 - Spatial mask analysis: border occupancy, distance to image borders, centroids, and combined pipeline-independent morphology reports.
@@ -177,6 +195,10 @@ Add `--group-by label` when a manifest column should be used for grouped paired-
 
 The module form, `python -m synthetic_imaging_validation.cli.validate`, is equivalent. Results can be written as JSON, long-form CSV, or both. Use `--show-progress` to display a tqdm progress bar while paired cases are evaluated.
 
+MS-SSIM uses NumPy/SciPy by default. Add `--ms-ssim-backend torchmetrics`
+only when you need to compare against the optional earlier backend; this
+requires installation with the `torch` extra.
+
 For directory and manifest runs, `--num-workers N` parallelizes metric
 calculation across real/synthetic pairs while keeping the output order stable.
 The default is `--num-workers 1`, which is the original sequential behavior.
@@ -193,7 +215,7 @@ Run `synthetic-imaging-validate --help` to see the options for mask thresholds, 
 
 ## Examples and tests
 
-The current test suite has 100% statement and branch coverage. The full threshold is enforced by CI across every supported Python version and runner platform.
+The current base test suite has 100% statement and branch coverage, enforced by CI across every supported Python version and runner platform. A separate compatibility job installs PyTorch and checks the TorchMetrics backend against the native implementation on representative 2D, 3D, batched, and multi-channel inputs.
 
 After installing the package in editable mode, run the examples from the repository root:
 

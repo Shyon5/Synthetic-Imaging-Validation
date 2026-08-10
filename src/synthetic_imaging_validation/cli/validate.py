@@ -96,6 +96,15 @@ def _parser() -> argparse.ArgumentParser:
     parser.add_argument("--spacing", nargs="+", type=float, help="Axis-order spacing when files lack it.")
     parser.add_argument("--channel-axis", type=int, help="Explicit channel axis for SSIM/MS-SSIM.")
     parser.add_argument("--batch-axis", type=int, help="Explicit batch axis for SSIM/MS-SSIM.")
+    parser.add_argument(
+        "--ms-ssim-backend",
+        choices=("numpy", "torchmetrics"),
+        default="numpy",
+        help=(
+            "MS-SSIM backend: lightweight NumPy/SciPy (default) or the optional "
+            "TorchMetrics reference backend."
+        ),
+    )
     parser.add_argument("--border-width", nargs="+", type=int, default=[1])
     parser.add_argument(
         "--allow-spatial-mismatch",
@@ -211,6 +220,7 @@ def _calculate_pair_metrics(pair: ImagePair, args: argparse.Namespace) -> dict[s
             data_range=args.data_range,
             channel_axis=args.channel_axis,
             batch_axis=args.batch_axis,
+            backend=args.ms_ssim_backend,
         )
     if "wasserstein" in requested:
         results["wasserstein"] = wasserstein_distance(real, synthetic)

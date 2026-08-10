@@ -20,18 +20,65 @@ For NIfTI data, `ImageData.spacing` follows the loaded array axes. Supply that t
 | `nrmse` | RMSE divided by real-image range, absolute mean, or RMS; 0 is optimal. | The normalization convention must be reported. Zero reference denominator can produce infinity. |
 | `psnr` | Logarithmic signal-to-error ratio in dB; larger is better; identical inputs give infinity. | Requires a scientifically meaningful `data_range`; inferred observed range is convenient but less comparable across cohorts. |
 | `ssim` | Local luminance/contrast/structure similarity, usually [-1, 1]; 1 is optimal. | 2D/3D spatial input. Declare channel and batch axes. Window size must fit the smallest dimension. |
-| `ms_ssim` | Multi-scale SSIM, normally [0, 1]; 1 is optimal. | Optional torch/torchmetrics dependency. Adaptively reduces scales/kernel for smaller 2D/3D inputs; report effective preprocessing and range. |
+| `ms_ssim` | Multi-scale SSIM, normally [0, 1]; 1 is optimal. | Native NumPy/SciPy implementation. Adaptively reduces scales/kernel for smaller 2D/3D inputs; report the intensity range and preprocessing protocol. |
 
 ```python
-from synthetic_imaging_validation.metrics.image_similarity import mae, nrmse, psnr, ssim
+from synthetic_imaging_validation.metrics.image_similarity import mae, ms_ssim, nrmse, psnr, ssim
 
 results = {
     "mae": mae(real, synthetic),
     "nrmse": nrmse(real, synthetic, normalization="range"),
     "psnr": psnr(real, synthetic, data_range=1.0),
     "ssim": ssim(real, synthetic, data_range=1.0),
+    "ms_ssim": ms_ssim(real, synthetic, data_range=1.0),
 }
 ```
+
+### MS-SSIM implementation and backends
+
+The default MS-SSIM backend is implemented with NumPy and SciPy and is
+included in the base installation. Inputs are converted internally to
+float32 arrays in `[batch, channel, spatial...]` order. At each scale, the
+implementation applies Gaussian filtering with reflection padding, computes
+the structural and contrast terms, and downsamples by two with average
+pooling. It starts with the standard five MS-SSIM weights and automatically
+tries fewer scales or a smaller odd kernel when the spatial dimensions are
+too small.
+
+```python
+native_score = ms_ssim(
+    real,
+    synthetic,
+    data_range=1.0,
+    channel_axis=None,
+    batch_axis=None,
+    max_scales=5,
+)
+```
+
+For comparison with results produced by earlier versions of this package, an
+optional TorchMetrics backend remains available:
+
+```python
+reference_score = ms_ssim(
+    real,
+    synthetic,
+    data_range=1.0,
+    backend="torchmetrics",
+)
+```
+
+The reference backend requires installation with `pip install ".[torch]"`.
+Both implementations follow the same calculation and are tested to agree
+within an absolute or relative tolerance of `1e-5` on representative 2D, 3D,
+batched, and multi-channel inputs. Exact bitwise equality is not promised:
+SciPy and PyTorch may accumulate float32 operations in a different order, and
+small platform-dependent rounding differences are normal.
+
+The TorchMetrics backend is a compatibility aid rather than a requirement for
+MS-SSIM. It may be removed in a future release after the native backend has
+received sufficient use and independent validation. Record the package
+version and backend when strict reproduction of an older evaluation matters.
 
 ## Intensity distributions
 

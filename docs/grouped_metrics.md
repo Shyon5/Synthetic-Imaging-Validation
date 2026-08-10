@@ -33,6 +33,10 @@ Built-in paired metrics are:
 - `dice`, `iou`, `hausdorff`, `hausdorff95`, `average_surface_distance`;
 - `measure_ratio`, defined as synthetic foreground area/volume divided by the real value.
 
+MS-SSIM uses its lightweight NumPy/SciPy backend by default. If a grouped
+comparison must reproduce results from the earlier optional backend, pass
+`metric_kwargs={"ms_ssim": {"backend": "torchmetrics", "data_range": 1.0}}`.
+
 The output includes the observed count, finite-value summary, and counts of NaN or infinite results. Explicitly requested but absent classes are retained with `status="insufficient_samples"`.
 
 ## Distribution metrics
@@ -83,4 +87,3 @@ A paired callable receives one real and one synthetic sample and must return a s
 - `class_names` changes display keys without changing the underlying values.
 - Report `count` or `n_real`/`n_synthetic` with every result. Class-wise feature metrics can be unreliable even when the global cohort is large.
 - Avoid drawing conclusions from many class/metric combinations without accounting for multiplicity and subgroup imbalance.
-

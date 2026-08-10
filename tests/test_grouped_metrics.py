@@ -207,3 +207,19 @@ def test_torch_class_labels_are_supported():
     values = np.zeros((2, 3, 3))
     report = paired_metrics_by_class(values, values, torch.tensor([0, 1]), metrics="mae")
     assert set(report) == {"0", "1"}
+
+
+def test_tensor_like_class_labels_do_not_require_torch():
+    class TensorLike:
+        def detach(self):
+            return self
+
+        def cpu(self):
+            return self
+
+        def numpy(self):
+            return np.array([0, 1])
+
+    values = np.zeros((2, 3, 3))
+    report = paired_metrics_by_class(values, values, TensorLike(), metrics="mae")
+    assert set(report) == {"0", "1"}

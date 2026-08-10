@@ -19,7 +19,7 @@ No function guesses whether a length-3 axis is a color channel or a spatial axis
 | Metric group | 2D | 3D | Notes |
 | --- | --- | --- | --- |
 | MAE, MSE, RMSE, NRMSE, PSNR | Yes | Yes | All equal-shape numeric arrays; values are averaged over every element. |
-| SSIM, MS-SSIM | Yes | Yes | Native spatial computation; channel/batch axes are explicit. |
+| SSIM, MS-SSIM | Yes | Yes | Native spatial computation; channel/batch axes are explicit. MS-SSIM uses NumPy/SciPy by default. |
 | Histogram/statistical metrics | Yes | Yes | Spatial axes are flattened because location is intentionally ignored. |
 | Dice, IoU, foreground fraction/ratio | Yes | Yes | Scalar masks only. Area is measured in 2D and volume in 3D. |
 | Connected components | Yes | Yes | 4/8 connectivity in 2D; 6/18/26 connectivity in 3D. |
