@@ -14,6 +14,7 @@ coverage.xml
 htmlcov/
 build/
 dist/
+docs/meeting_demo.md
 
 # Local environments and configuration
 .venv/
@@ -38,6 +39,8 @@ results/
 results.json
 results.csv
 demo_validation/
+examples/meeting_demo/
+tests/test_meeting_demo.py
 
 # Local datasets and medical-imaging files
 data/
