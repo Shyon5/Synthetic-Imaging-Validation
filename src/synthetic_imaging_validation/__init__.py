@@ -1,6 +1,7 @@
 """Validation metrics for synthetic medical images and masks."""
 
 from .evaluation import evaluate_pairs, parallel_map, resolve_num_workers
+from .reporting import write_report
 from .io.loading import ImageData, is_supported_image_path, load_directory, load_image, load_pair
 from .io.pairing import ImagePair, image_file_key, load_manifest_pairs, load_paired_directories, pair_directory_files
 from .metrics.distribution import (
@@ -81,6 +82,7 @@ __all__ = [
     "surface_distance_statistics",
     "volume_ratio",
     "wasserstein_distance",
+    "write_report",
 ]
 
 __version__ = "0.1.0"

@@ -21,7 +21,7 @@ Keep the project model- and dataset-agnostic. Before opening a pull request:
 Install the development extras and run the same checks used in CI:
 
 ```bash
-python -m pip install -e ".[test,torch,viz]"
+python -m pip install -e ".[test,torch,viz,report]"
 python -m pytest --cov --cov-report=term-missing --cov-fail-under=100
 ```
 

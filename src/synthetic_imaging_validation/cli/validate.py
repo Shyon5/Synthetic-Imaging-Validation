@@ -27,6 +27,7 @@ from ..metrics.segmentation import (
     volume_ratio,
 )
 from ..metrics.spatial import border_statistics
+from ..reporting import require_pdf_support, write_report
 
 DEFAULT_METRICS = ("mae", "mse", "rmse", "psnr", "ssim", "wasserstein")
 SUPPORTED_METRICS = (
@@ -87,9 +88,12 @@ def _parser() -> argparse.ArgumentParser:
         help="Base directory for relative manifest paths. Defaults to the manifest directory.",
     )
     parser.add_argument("--metrics", nargs="+", default=list(DEFAULT_METRICS), choices=SUPPORTED_METRICS)
-    parser.add_argument("--output", type=Path, help="Optional single .json or .csv result file.")
+    parser.add_argument("--output", type=Path, help="Optional single .json, .csv, .pdf, or .tex result file.")
     parser.add_argument("--output-json", type=Path, help="Optional JSON result file.")
     parser.add_argument("--output-csv", type=Path, help="Optional CSV result file.")
+    parser.add_argument("--output-pdf", type=Path, help="Optional PDF report (requires the report extra).")
+    parser.add_argument("--output-latex", type=Path, help="Optional standalone LaTeX (.tex) report.")
+    parser.add_argument("--pdf-font", type=Path, help="Optional TrueType font for PDF labels outside the default character set.")
     parser.add_argument("--data-range", type=float, help="Known intensity range for PSNR/SSIM/MS-SSIM.")
     parser.add_argument("--threshold", type=float, default=0.5, help="Mask threshold (default: 0.5).")
     parser.add_argument("--bins", type=int, default=64, help="Histogram bins for KL/JS (default: 64).")
@@ -436,7 +440,7 @@ def _write_pairwise_csv(handle: Any, results: dict[str, Any]) -> None:
                 )
 
 
-def _write_results(path: Path, results: dict[str, Any]) -> None:
+def _write_results(path: Path, results: dict[str, Any], *, pdf_font: Optional[Path] = None) -> None:
     path.parent.mkdir(parents=True, exist_ok=True)
     if path.suffix.lower() == ".json":
         path.write_text(json.dumps(results, indent=2, sort_keys=True) + "\n", encoding="utf-8")
@@ -448,20 +452,23 @@ def _write_results(path: Path, results: dict[str, Any]) -> None:
                 writer = csv.writer(handle)
                 writer.writerow(["metric", "value"])
                 writer.writerows(_flatten(results))
+    elif path.suffix.lower() in {".pdf", ".tex"}:
+        write_report(results, path, pdf_font=pdf_font)
     else:
-        raise ValueError("--output must end with .json or .csv.")
+        raise ValueError("--output must end with .json, .csv, .pdf, or .tex.")
 
 
 def _requested_outputs(args: argparse.Namespace) -> list[Path]:
     """Return all result files requested by the CLI.
 
-    ``--output`` is kept for backward compatibility and accepts either JSON or CSV.
-    ``--output-json`` and ``--output-csv`` are format-specific helpers that allow
-    both files to be written from a single metric calculation.
+    All four formats reuse a single metric calculation. JSON and CSV retain
+    their existing schemas; PDF and LaTeX present the same result mapping.
     """
 
     outputs = []
     if args.output:
+        if args.output.suffix.lower() not in {".json", ".csv", ".pdf", ".tex"}:
+            raise ValueError("--output must end with .json, .csv, .pdf, or .tex.")
         outputs.append(args.output)
     if args.output_json:
         if args.output_json.suffix.lower() != ".json":
@@ -471,6 +478,12 @@ def _requested_outputs(args: argparse.Namespace) -> list[Path]:
         if args.output_csv.suffix.lower() != ".csv":
             raise ValueError("--output-csv must end with .csv.")
         outputs.append(args.output_csv)
+    for option, suffix in (("output_pdf", ".pdf"), ("output_latex", ".tex")):
+        path = getattr(args, option, None)
+        if path is not None:
+            if path.suffix.lower() != suffix:
+                raise ValueError(f"--{option.replace('_', '-')} must end with {suffix}.")
+            outputs.append(path)
     return outputs
 
 
@@ -479,9 +492,14 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
 
     args = _parser().parse_args(argv)
     try:
+        outputs = _requested_outputs(args)
+        if any(output.suffix.lower() == ".pdf" for output in outputs):
+            require_pdf_support()
+            if args.pdf_font is not None and not args.pdf_font.is_file():
+                raise FileNotFoundError(f"PDF font not found: {args.pdf_font}")
         results = calculate_metrics(args)
-        for output in _requested_outputs(args):
-            _write_results(output, results)
+        for output in outputs:
+            _write_results(output, results, pdf_font=args.pdf_font)
         print(json.dumps(results, indent=2, sort_keys=True))
     except (FileNotFoundError, ImportError, KeyError, TypeError, ValueError) as exc:
         _parser().error(str(exc))

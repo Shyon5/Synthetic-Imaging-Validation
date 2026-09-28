@@ -2,13 +2,13 @@
 
 [![OS Tests](https://github.com/Shyon5/Synthetic-Imaging-Validation/actions/workflows/tests.yml/badge.svg?branch=main)](https://github.com/Shyon5/Synthetic-Imaging-Validation/actions/workflows/tests.yml)
 
-`Synthetic-Imaging-Validation` is a focused Python package for comparing real and synthetic medical images. It brings image similarity, intensity-distribution, segmentation, spatial, and feature-based metrics into one model-independent interface.
+`Synthetic-Imaging-Validation` is a focused Python package for comparing real and synthetic medical images. It brings image similarity, intensity-distribution, segmentation, spatial and feature-based metrics into one model-independent interface.
 
-Validation remains separate from the code that generated the images. The package does not prescribe a preprocessing pipeline, assume a dataset layout, or bundle a feature encoder. Shapes, spacing, intensity ranges, and alignment requirements stay explicit so that the same evaluation can be reproduced on different datasets.
+Validation remains separate from the code that generated the images. The package does not prescribe a preprocessing pipeline, assume a dataset layout or bundle a feature encoder. Shapes, spacing, intensity ranges, and alignment requirements stay explicit so that the same evaluation can be reproduced on different datasets.
 
 ## Installation
 
-Python 3.9 through 3.14 are supported. The base package is tested on every supported Python version using GitHub's `ubuntu-latest`, `windows-latest`, and `macos-latest` hosted runners. The matrix therefore tracks the latest runner image for each operating system; older OS releases are not tested. The optional TorchMetrics compatibility backend is checked separately on Ubuntu. Python 3.9 is included for compatibility with existing research environments, although it is end-of-life upstream and should not be preferred for new installations.
+Python 3.9 through 3.14 are supported. The base package is tested on every supported Python version using GitHub's `ubuntu-latest`, `windows-latest` and `macos-latest` hosted runners. The matrix therefore tracks the latest runner image for each operating system; older OS releases are not tested. The optional TorchMetrics compatibility backend is checked separately on Ubuntu. Python 3.9 is included for compatibility with existing research environments, although it is end-of-life upstream and should not be preferred for new installations.
 
 From a local checkout, install the core package with:
 
@@ -27,7 +27,8 @@ Optional features are installed as extras:
 ```bash
 python -m pip install ".[torch]"       # optional TorchMetrics MS-SSIM reference backend
 python -m pip install ".[viz]"         # plotting helpers
-python -m pip install -e ".[test,torch,viz]"  # development with the complete test suite
+python -m pip install ".[report]"      # PDF reports and the partner guide builder
+python -m pip install -e ".[test,torch,viz,report]"  # development with the complete test suite
 ```
 
 MS-SSIM is part of the base installation and does not require PyTorch. The
@@ -61,7 +62,7 @@ The base installation is deliberately small:
 | Package | Supported versions | Used for |
 | --- | --- | --- |
 | NumPy | `>=1.26,<3.0` | Array conversion and numerical operations throughout the package |
-| SciPy | `>=1.13,<2.0` | Native MS-SSIM, statistical distances, connected components, surface distances, and matrix operations |
+| SciPy | `>=1.13,<2.0` | Native MS-SSIM, statistical distances, connected components, surface distances and matrix operations |
 | scikit-image | `>=0.24,<1.0` | SSIM |
 | nibabel | `>=5.3,<6.0` | Reading NIfTI files and their spatial metadata |
 | tqdm | `>=4.66,<5.0` | Optional CLI progress bars via `--show-progress` |
@@ -74,14 +75,15 @@ The optional extras are:
 | --- | --- | --- |
 | `torch` | PyTorch `>=2.2,<3.0`, torchmetrics `>=1.3,<2.0` | Optional MS-SSIM reference backend and compatibility checks |
 | `viz` | Matplotlib `>=3.8,<4.0` | Histogram and slice plotting helpers |
-| `test` | pytest `>=8.0,<10.0`, pytest-cov `>=5.0,<8.0` | Running the test suite and measuring coverage |
+| `report` | ReportLab `>=4.4.10,<5.0` | PDF result export and generation of the partner guide; LaTeX export needs no extra dependency |
+| `test` | pytest `>=8.0,<10.0`, pytest-cov `>=5.0,<8.0`, pypdf `>=5.0,<7.0` | Running tests, measuring coverage and checking generated PDFs |
 
 PyTorch is not required for any core metric. PyTorch tensors are accepted when PyTorch is already available and are converted internally to NumPy. `pyproject.toml` is the source of truth for dependency constraints; `requirements.txt` mirrors the core runtime dependencies for convenience.
 
 ### MS-SSIM backends
 
 `ms_ssim()` uses the lightweight `numpy` backend by default. It reproduces the
-Gaussian filtering, reflection padding, scale weights, stride-two pooling, and
+Gaussian filtering, reflection padding, scale weights, stride-two pooling and
 adaptive scale/kernel selection used by the earlier TorchMetrics implementation.
 The two backends are expected to agree within `1e-5`; bit-for-bit equality is
 not expected because their floating-point operations are executed by different
@@ -134,13 +136,15 @@ Metrics are grouped by the kind of comparison they make:
 - Image similarity: MAE, MSE, RMSE, NRMSE, PSNR, SSIM, and adaptive MS-SSIM.
 - Distribution/statistics: histograms, mean/std/min/max/percentiles, Wasserstein-1, histogram KL divergence, histogram Jensen-Shannon divergence.
 - Segmentation: Dice, IoU, foreground fraction, area/volume ratio, connected-component area/volume distributions, Hausdorff/HD95, average and summary contour/surface distances.
-- Spatial mask analysis: border occupancy, distance to image borders, centroids, and combined pipeline-independent morphology reports.
-- Feature-based generative quality: Fréchet feature distance, KID, manifold precision/recall, RBF-MMD, and sliced Wasserstein distance.
+- Spatial mask analysis: border occupancy, distance to image borders, centroids and combined pipeline-independent morphology reports.
+- Feature-based generative quality: Fréchet feature distance, KID, manifold precision/recall, RBF-MMD and sliced Wasserstein distance.
 - Optional class-wise evaluation for paired metrics and independent real/synthetic cohorts.
 
 The Fréchet implementation works on precomputed `[samples, features]` matrices. Those features may come from 2D images or 3D volumes, but the package does not currently provide the encoder. For that reason, the result is described as a Fréchet feature distance rather than canonical Inception FID or medical 3D-FID.
 
 For metric definitions and limitations, see [docs/metrics.md](docs/metrics.md). Practical guidance is collected in [docs/metric_selection.md](docs/metric_selection.md). Input pairing is described in [docs/data_loading.md](docs/data_loading.md), while [docs/grouped_metrics.md](docs/grouped_metrics.md) covers class-wise evaluation and [docs/dimensionality.md](docs/dimensionality.md) explains the 2D/3D shape conventions.
+
+For an overview suitable for project partners, use the [PDF guide](docs/deliverables/validation_guide.pdf). It covers input preparation, metric selection, examples and interpretation in one document. Its [Markdown source](docs/validation_guide.md) is editable and can be rebuilt with `python scripts/build_validation_guide.py` after installing the `report` extra.
 
 ## Supported inputs and conventions
 
@@ -163,7 +167,7 @@ validation_data/
     case_002.nii.gz
 ```
 
-Directory pairing can match files by filename stem, or a CSV manifest can specify each real/synthetic pair explicitly. `load_directory` still returns files in a stable sorted order, but it does not guess subject pairing on its own. Arrays are not silently squeezed, permuted, resampled, or reoriented. NIfTI spacing follows array-axis order; when both inputs carry spatial metadata, pair loading checks shape, spacing, and affine.
+Directory pairing can match files by filename stem, or a CSV manifest can specify each real/synthetic pair explicitly. `load_directory` still returns files in a stable sorted order, but it does not guess subject pairing on its own. Arrays are not silently squeezed, permuted, resampled or reoriented. NIfTI spacing follows array-axis order; when both inputs carry spatial metadata, pair loading checks shape, spacing and affine.
 
 Empty arrays and values containing NaN or infinity are rejected with a clear error. Pairwise metrics also require matching shapes. Channel and batch axes must be given explicitly for SSIM and MS-SSIM. Mask metrics accept scalar 2D or 3D arrays and binarize them with `values >= threshold`. The same implementation handles both dimensions, using area terminology in 2D and volume terminology in 3D.
 
@@ -188,12 +192,13 @@ synthetic-imaging-validate --manifest validation_data/pairs.csv --key-column cas
 ```
 
 Use `--output-json results.json --output-csv results.csv` when you want both
-formats from the same run. The older `--output` option is still available for a
-single JSON or CSV file.
+formats from the same run. Add `--output-pdf results.pdf` for a reading copy or
+`--output-latex results.tex` for an editable LaTeX report. All outputs reuse the
+same calculation. The `--output` option accepts any one of these four formats.
 
 Add `--group-by label` when a manifest column should be used for grouped paired-metric summaries. Without `--group-by`, extra manifest columns remain metadata only.
 
-The module form, `python -m synthetic_imaging_validation.cli.validate`, is equivalent. Results can be written as JSON, long-form CSV, or both. Use `--show-progress` to display a tqdm progress bar while paired cases are evaluated.
+The module form, `python -m synthetic_imaging_validation.cli.validate`, is equivalent. Use `--show-progress` to display a tqdm progress bar while paired cases are evaluated.
 
 MS-SSIM uses NumPy/SciPy by default. Add `--ms-ssim-backend torchmetrics`
 only when you need to compare against the optional earlier backend; this
@@ -204,18 +209,41 @@ calculation across real/synthetic pairs while keeping the output order stable.
 The default is `--num-workers 1`, which is the original sequential behavior.
 Use `--num-workers 0` to use the available CPU cores, capped by the number of
 pairs. Parallel execution is thread-based to avoid copying large image arrays
-between worker processes, which keeps it portable across Windows, Linux, and
+between worker processes, which keeps it portable across Windows, Linux and
 macOS. It is most useful for many cases or moderately expensive metrics; for a
 handful of small arrays, sequential execution may be just as fast.
 
 The same pair-level execution helper is available from Python through
 `evaluate_pairs(pairs, metric_function, num_workers=4, show_progress=True)`.
 
-Run `synthetic-imaging-validate --help` to see the options for mask thresholds, spacing, border widths, array axes, directory pairing, manifest columns, grouped summaries, and parallel execution.
+Run `synthetic-imaging-validate --help` to see the options for mask thresholds, spacing, border widths, array axes, directory pairing, manifest columns, grouped summaries and parallel execution.
+
+### PDF and LaTeX output
+
+Install `.[report]` for PDF export. LaTeX export is part of the base package:
+
+```bash
+synthetic-imaging-validate --manifest pairs.csv --group-by label --metrics mae rmse --output-json results.json --output-csv results.csv --output-pdf results.pdf --output-latex results.tex
+```
+
+Both reports include the supplied per-pair values and global/grouped summaries.
+The Python API can also export a metric dictionary or an existing JSON report:
+
+```python
+from synthetic_imaging_validation import write_report
+
+write_report(results, "results.pdf")
+write_report(results, "results.tex")
+```
+
+PDF generation needs no TeX installation. The `.tex` file can be compiled
+separately with XeLaTeX or LuaLaTeX. Outputs may contain paths and case metadata;
+review them before sharing. See [docs/reporting.md](docs/reporting.md) for font
+options, value conventions and conversion of saved results without re-evaluation.
 
 ## Examples and tests
 
-The current base test suite has 100% statement and branch coverage, enforced by CI across every supported Python version and runner platform. A separate compatibility job installs PyTorch and checks the TorchMetrics backend against the native implementation on representative 2D, 3D, batched, and multi-channel inputs.
+The current base test suite has 100% statement and branch coverage, enforced by CI across every supported Python version and runner platform. A separate compatibility job installs PyTorch and checks the TorchMetrics backend against the native implementation on representative 2D, 3D, batched and multi-channel inputs.
 
 After installing the package in editable mode, run the examples from the repository root:
 
@@ -224,10 +252,18 @@ python examples/basic_usage.py
 python examples/validate_2d_data.py
 python examples/validate_binary_masks.py
 python examples/validate_nifti_pair.py real.nii.gz synthetic.nii.gz
+python examples/export_reports.py  # requires the report extra
 python -m pytest
 ```
 
 To reproduce the coverage check used in CI:
+
+```bash
+python -m pip install -e ".[test,viz,report]"
+python -m pytest -m "not torch" --cov --cov-report=term-missing --cov-fail-under=100
+```
+
+For the complete suite, also install the `torch` extra and omit the marker filter:
 
 ```bash
 python -m pytest --cov --cov-report=term-missing --cov-fail-under=100
@@ -238,11 +274,11 @@ python -m pytest --cov --cov-report=term-missing --cov-fail-under=100
 New metrics should fit the existing input and validation conventions:
 
 1. Place it in the module matching its scientific role under `src/synthetic_imaging_validation/metrics/`.
-2. Reuse `to_numpy`, `validate_pair`, and `validate_spacing` instead of adding implicit conversions.
-3. Document direction, units/range, empty-input behavior, dimensional assumptions, and required alignment.
-4. Add identical-input, perturbed-input, invalid-shape, and non-finite-input tests.
+2. Reuse `to_numpy`, `validate_pair` and `validate_spacing` instead of adding implicit conversions.
+3. Document direction, units/range, empty-input behavior, dimensional assumptions and required alignment.
+4. Add identical-input, perturbed-input, invalid-shape and non-finite-input tests.
 5. Add CLI exposure only when the metric has unambiguous file-level inputs.
 
 ## Future Docker support
 
-Docker is intentionally out of scope for the first release. The package and CLI do not assume local paths and write only to destinations selected by the user, so container support can be added later without changing the metric APIs. Other likely additions are optional resampling, confidence intervals, and validated medical-imaging encoders.
+Docker is intentionally out of scope for the first release. The package and CLI do not assume local paths and write only to destinations selected by the user, so container support can be added later without changing the metric APIs. Other likely additions are optional resampling, confidence intervals and validated medical-imaging encoders.

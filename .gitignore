@@ -38,6 +38,12 @@ reports/
 results/
 results.json
 results.csv
+results.pdf
+results.tex
+*.aux
+*.out
+*.toc
+*.synctex.gz
 demo_validation/
 examples/meeting_demo/
 tests/test_meeting_demo.py

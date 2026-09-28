@@ -1,6 +1,9 @@
 # Keep text files consistent across Windows, Linux, and macOS.
 * text=auto eol=lf
 
+# PDF byte offsets must not be changed by text normalization.
+*.pdf binary
+
 # Windows command scripts require CRLF in some environments.
 *.bat text eol=crlf
 *.cmd text eol=crlf

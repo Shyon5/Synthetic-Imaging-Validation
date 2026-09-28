@@ -145,6 +145,11 @@ means, standard deviations, minima, and maxima. When grouping is requested, JSON
 also contains `grouped_summary`. CSV output uses one row per pair and metric,
 followed by global and grouped summary rows.
 
+For a reading copy, add `--output-pdf results.pdf` (requires the `report` extra).
+For an editable LaTeX document, add `--output-latex results.tex`. These can be
+combined with JSON and CSV without recalculating the metrics. See
+[reporting.md](reporting.md) for examples, font options, and privacy notes.
+
 Use `--show-progress` when evaluating several pairs and you want a tqdm progress
 bar in the terminal. The progress bar is written to standard error, while JSON
 results continue to be printed to standard output.
