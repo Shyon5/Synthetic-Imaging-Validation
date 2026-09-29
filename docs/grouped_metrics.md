@@ -32,6 +32,13 @@ Built-in paired metrics are:
 - `mae`, `mse`, `rmse`, `nrmse`, `psnr`, `ssim`, `ms_ssim`;
 - `dice`, `iou`, `hausdorff`, `hausdorff95`, `average_surface_distance`;
 - `measure_ratio`, defined as synthetic foreground area/volume divided by the real value.
+- `similarity_score`, `intensity_distribution_score`, experimental 0-100 summaries.
+
+Scores require fixed bounds, for example
+`metric_kwargs={"similarity_score": {"value_range": (0, 1)}}`. Keep the default
+scalar return value for class aggregation. As with other paired metrics, class
+summaries average per-case scores, not their input metrics. See
+[Scores and validation plots](scores_and_plots.md) for definitions and limitations.
 
 MS-SSIM uses its lightweight NumPy/SciPy backend by default. If a grouped
 comparison must reproduce results from the earlier optional backend, pass
@@ -59,10 +66,14 @@ report = distribution_metrics_by_class(
 
 Built-in distribution metrics are:
 
-- intensity comparisons: `wasserstein`, `kl`, `js`;
+- intensity comparisons: `wasserstein`, `kl`, `js`, `intensity_distribution_score`;
 - feature comparisons: `frechet`, `kid`, `feature_precision_recall`, `rbf_mmd`, `sliced_wasserstein`.
 
 Intensity metrics flatten all dimensions after the sample axis. Feature metrics require subgroup arrays shaped `[samples, features]` and a shared encoder/preprocessing protocol.
+
+The distribution score also requires `value_range` in `metric_kwargs`. In this
+API it compares pooled intensities within each class, so it is not equivalent
+to averaging per-case distribution scores from the paired API.
 
 ## Custom metrics
 

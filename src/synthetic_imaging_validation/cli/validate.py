@@ -28,6 +28,9 @@ from ..metrics.segmentation import (
 )
 from ..metrics.spatial import border_statistics
 from ..reporting import require_pdf_support, write_report
+from ..metrics.scores import similarity_score, intensity_distribution_score, validate_score_range
+from ..history import append_history
+from ..plotting import plot_results, plot_history, require_plot_support, validate_plot_path
 
 DEFAULT_METRICS = ("mae", "mse", "rmse", "psnr", "ssim", "wasserstein")
 SUPPORTED_METRICS = (
@@ -88,6 +91,16 @@ def _parser() -> argparse.ArgumentParser:
         help="Base directory for relative manifest paths. Defaults to the manifest directory.",
     )
     parser.add_argument("--metrics", nargs="+", default=list(DEFAULT_METRICS), choices=SUPPORTED_METRICS)
+    parser.add_argument("--scores", nargs="+", choices=("similarity", "intensity_distribution"),
+                        help="Optional experimental composite scores (0-100), not clinical ratings.")
+    parser.add_argument("--score-range", nargs=2, type=float, metavar=("LOW", "HIGH"),
+                        help="Required fixed intensity bounds for scores; inputs are not rescaled.")
+    parser.add_argument("--plot-output", type=Path, help="Per-pair metric figure (.png/.svg/.pdf; requires viz).")
+    parser.add_argument("--plot-metrics", nargs="+", help="Scalar fields to plot; score names may omit .value.")
+    parser.add_argument("--history", type=Path, help="Append this evaluation to a versioned history JSON.")
+    parser.add_argument("--step", "--epoch", dest="step", type=int, help="Non-negative history epoch/step.")
+    parser.add_argument("--run-name", default="validation", help="History series name (default: validation).")
+    parser.add_argument("--plot-history", type=Path, help="Plot updated --history to .png/.svg/.pdf (requires viz).")
     parser.add_argument("--output", type=Path, help="Optional single .json, .csv, .pdf, or .tex result file.")
     parser.add_argument("--output-json", type=Path, help="Optional JSON result file.")
     parser.add_argument("--output-csv", type=Path, help="Optional CSV result file.")
@@ -202,36 +215,56 @@ def _calculate_pair_metrics(pair: ImagePair, args: argparse.Namespace) -> dict[s
     real, synthetic = pair.real.array, pair.synthetic.array
     spacing = _resolve_spacing(args.spacing, pair.real.spacing, real.ndim)
     results: dict[str, Any] = {}
+    cached = {}
+    data_range = args.data_range
+    if args.scores:
+        bounds = validate_score_range(args.score_range)
+        protocols = {}
+        if "similarity" in args.scores:
+            data_range = bounds[1] - bounds[0]
+            detail = similarity_score(real, synthetic, value_range=bounds, channel_axis=args.channel_axis,
+                                      backend=args.ms_ssim_backend, return_details=True)
+            protocols["similarity_score"] = detail.pop("protocol")
+            cached.update(detail["raw_metrics"])
+            results["similarity_score"] = detail
+        if "intensity_distribution" in args.scores:
+            detail = intensity_distribution_score(real, synthetic, value_range=bounds, bins=args.bins,
+                                                  return_details=True)
+            protocols["intensity_distribution_score"] = detail.pop("protocol")
+            cached.update(detail["raw_metrics"])
+            results["intensity_distribution_score"] = detail
+        results["score_protocol"] = protocols
     requested = set(args.metrics)
     simple = {"mae": mae, "mse": mse, "rmse": rmse, "nrmse": nrmse}
     for name, function in simple.items():
         if name in requested:
-            results[name] = function(real, synthetic)
+            results[name] = cached[name] if name in cached else function(real, synthetic)
     if "psnr" in requested:
-        results["psnr"] = psnr(real, synthetic, data_range=args.data_range)
+        results["psnr"] = psnr(real, synthetic, data_range=data_range)
     if "ssim" in requested:
         results["ssim"] = ssim(
             real,
             synthetic,
-            data_range=args.data_range,
+            data_range=data_range,
             channel_axis=args.channel_axis,
             batch_axis=args.batch_axis,
         )
     if "ms_ssim" in requested:
-        results["ms_ssim"] = ms_ssim(
+        results["ms_ssim"] = cached["ms_ssim"] if "ms_ssim" in cached else ms_ssim(
             real,
             synthetic,
-            data_range=args.data_range,
+            data_range=data_range,
             channel_axis=args.channel_axis,
             batch_axis=args.batch_axis,
             backend=args.ms_ssim_backend,
         )
     if "wasserstein" in requested:
-        results["wasserstein"] = wasserstein_distance(real, synthetic)
+        results["wasserstein"] = cached["wasserstein"] if "wasserstein" in cached else wasserstein_distance(real, synthetic)
     if "kl" in requested:
-        results["kl"] = kl_divergence(real, synthetic, bins=args.bins)
+        histogram_range = args.score_range if args.scores and "intensity_distribution" in args.scores else None
+        results["kl"] = kl_divergence(real, synthetic, bins=args.bins, value_range=histogram_range)
     if "js" in requested:
-        results["js"] = jensen_shannon_divergence(real, synthetic, bins=args.bins)
+        results["js"] = cached["js"] if "js" in cached else jensen_shannon_divergence(real, synthetic, bins=args.bins)
     if "dice" in requested:
         results["dice"] = dice(synthetic, real, threshold=args.threshold)
     if "iou" in requested:
@@ -362,6 +395,18 @@ def _calculate_metrics_for_pairs(
 def calculate_metrics(args: argparse.Namespace) -> dict[str, Any]:
     """Calculate requested CLI metrics and return a JSON-compatible dictionary."""
 
+    if args.scores:
+        if args.score_range is None:
+            raise ValueError("--scores requires --score-range LOW HIGH.")
+        bounds = validate_score_range(args.score_range)
+        if args.batch_axis is not None:
+            raise ValueError("Scores require one case per pair; --batch-axis is not supported with --scores.")
+        if "similarity" in args.scores and args.data_range is not None and not np.isclose(
+            args.data_range, bounds[1] - bounds[0], rtol=1e-7, atol=0
+        ):
+            raise ValueError("--data-range must equal the width of --score-range for similarity scores.")
+    elif args.score_range is not None:
+        raise ValueError("--score-range requires --scores.")
     mode, pairs = _load_cli_pairs(args)
     if args.group_by and mode != "manifest":
         raise ValueError("--group-by is available only with --manifest.")
@@ -369,6 +414,7 @@ def calculate_metrics(args: argparse.Namespace) -> dict[str, Any]:
         return _json_safe(_calculate_metrics_for_pairs(pairs, args)[0])
 
     metrics_by_pair = _calculate_metrics_for_pairs(pairs, args)
+    protocols = [metrics.pop("score_protocol", None) for metrics in metrics_by_pair]
     records = []
     for pair, metrics in zip(pairs, metrics_by_pair):
         records.append(
@@ -386,6 +432,8 @@ def calculate_metrics(args: argparse.Namespace) -> dict[str, Any]:
     }
     if args.group_by:
         results["grouped_summary"] = _summarize_grouped_pair_metrics(records, args.group_by)
+    if protocols[0] is not None:
+        results["score_protocol"] = protocols[0]
     return _json_safe(results)
 
 
@@ -493,15 +541,41 @@ def main(argv: Optional[Sequence[str]] = None) -> int:
     args = _parser().parse_args(argv)
     try:
         outputs = _requested_outputs(args)
+        if (args.history is None) != (args.step is None):
+            raise ValueError("--history and --step/--epoch must be supplied together.")
+        if args.history is not None and (args.history.suffix.lower() != ".json" or args.step < 0):
+            raise ValueError("History requires a .json path and a non-negative step.")
+        if args.plot_history is not None and args.history is None:
+            raise ValueError("--plot-history requires --history and --step.")
+        if args.plot_metrics and args.plot_output is None and args.plot_history is None:
+            raise ValueError("--plot-metrics requires --plot-output or --plot-history.")
+        additional = [path for path in (args.history, args.plot_output, args.plot_history) if path is not None]
+        paths = [path.resolve() for path in outputs + additional]
+        if len(paths) != len(set(paths)):
+            raise ValueError("Result, history and plot destinations must be distinct.")
+        for path in (args.plot_output, args.plot_history):
+            if path is not None:
+                validate_plot_path(path)
+                require_plot_support()
         if any(output.suffix.lower() == ".pdf" for output in outputs):
             require_pdf_support()
             if args.pdf_font is not None and not args.pdf_font.is_file():
                 raise FileNotFoundError(f"PDF font not found: {args.pdf_font}")
         results = calculate_metrics(args)
+        if args.history is not None:
+            protocol = {name: getattr(args, name) for name in (
+                "data_range", "bins", "threshold", "spacing", "channel_axis", "batch_axis",
+                "border_width", "ms_ssim_backend", "allow_spatial_mismatch")}
+            protocol["metrics"] = sorted(set(args.metrics))
+            history = append_history(args.history, results, step=args.step, run=args.run_name, protocol=protocol)
+            if args.plot_history is not None:
+                plot_history(history, metrics=args.plot_metrics, output=args.plot_history)
+        if args.plot_output is not None:
+            plot_results(results, metrics=args.plot_metrics, output=args.plot_output)
         for output in outputs:
             _write_results(output, results, pdf_font=args.pdf_font)
         print(json.dumps(results, indent=2, sort_keys=True))
-    except (FileNotFoundError, ImportError, KeyError, TypeError, ValueError) as exc:
+    except (OSError, ImportError, KeyError, TypeError, ValueError) as exc:
         _parser().error(str(exc))
     return 0
 

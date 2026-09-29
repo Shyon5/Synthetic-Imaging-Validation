@@ -2,6 +2,9 @@
 
 from .evaluation import evaluate_pairs, parallel_map, resolve_num_workers
 from .reporting import write_report
+from .history import append_history, load_history
+from .plotting import plot_history, plot_results
+from .metrics.scores import similarity_score, intensity_distribution_score
 from .io.loading import ImageData, is_supported_image_path, load_directory, load_image, load_pair
 from .io.pairing import ImagePair, image_file_key, load_manifest_pairs, load_paired_directories, pair_directory_files
 from .metrics.distribution import (
@@ -83,6 +86,12 @@ __all__ = [
     "volume_ratio",
     "wasserstein_distance",
     "write_report",
+    "similarity_score",
+    "intensity_distribution_score",
+    "append_history",
+    "load_history",
+    "plot_history",
+    "plot_results",
 ]
 
 __version__ = "0.1.0"

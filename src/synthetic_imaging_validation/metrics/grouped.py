@@ -17,6 +17,7 @@ from .generative import (
     sliced_wasserstein_distance,
 )
 from .image_similarity import mae, mse, ms_ssim, nrmse, psnr, rmse, ssim
+from .scores import similarity_score, intensity_distribution_score
 from .segmentation import (
     average_surface_distance,
     dice,
@@ -43,6 +44,8 @@ def _feature_pr(real: Any, synthetic: Any, **kwargs: Any) -> Dict[str, float]:
 
 
 PAIRED_METRICS: Dict[str, MetricCallable] = {
+    "similarity_score": similarity_score,
+    "intensity_distribution_score": intensity_distribution_score,
     "mae": mae,
     "mse": mse,
     "rmse": rmse,
@@ -60,6 +63,7 @@ PAIRED_METRICS: Dict[str, MetricCallable] = {
 
 
 DISTRIBUTION_METRICS: Dict[str, MetricCallable] = {
+    "intensity_distribution_score": intensity_distribution_score,
     "wasserstein": wasserstein_distance,
     "kl": kl_divergence,
     "js": jensen_shannon_divergence,
@@ -333,4 +337,3 @@ def distribution_metrics_by_class(
                 )
         results[key] = entry
     return results
-

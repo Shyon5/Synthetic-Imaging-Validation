@@ -4,6 +4,11 @@ This page defines the metrics and their outputs. For task-specific recommendatio
 
 All applicable metrics can be stratified by categorical labels through the APIs described in [Metrics by class](grouped_metrics.md).
 
+The experimental `similarity_score` and `intensity_distribution_score` combine
+existing metrics into fixed-protocol 0-100 summaries. Their formulas, input ranges,
+outputs and limitations are documented in [Scores and validation plots](scores_and_plots.md).
+They supplement the raw metrics rather than replacing them.
+
 ## General input contract
 
 Metric functions accept NumPy arrays and PyTorch tensors. File paths are first loaded with `load_image` or `load_pair`. Numeric inputs must be non-empty, real-valued, and finite. Pairwise shapes must match. No function silently registers, resamples, normalizes, clips, or changes axis order.

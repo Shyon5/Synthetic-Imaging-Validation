@@ -287,6 +287,28 @@ The repository is modular. New metrics belong in the relevant metrics module and
 
 Current limitations include the absence of a full preprocessing pipeline, automatic feature extraction, built-in confidence intervals and Docker packaging. Reports describe the measured comparison; they do not replace visual review, task-specific validation, privacy assessment or clinical evaluation.
 
+## 10. Experimental scores and validation curves
+
+Two optional scores provide a compact description of image agreement on a 0-100 scale. Higher values mean closer agreement under the chosen protocol, not a probability that an image is clinically correct. These are initial, uncalibrated prototypes; always inspect their component metrics and representative images.
+
+The similarity score gives equal weight to MS-SSIM and one minus MAE divided by a fixed intensity range. Each component is limited to [0, 1], then their mean is multiplied by 100. Use it only for aligned real/synthetic pairs.
+
+The intensity-distribution score gives equal weight to one minus Jensen-Shannon divergence and one minus Wasserstein distance divided by the same fixed range width. Components are again limited to [0, 1]. Jensen-Shannon uses base-2 logarithms and fixed histogram bins. This score measures intensity agreement, not the location of anatomy: rearranging voxels does not change it.
+
+The interval is supplied explicitly, for example --score-range 0 1 for images already normalized to [0, 1]. No normalization is applied automatically. Keep the interval, histogram bins, validation cases and preprocessing unchanged across comparisons. A wide interval or large shared background can make results look better than they are. Out-of-range and non-finite inputs raise errors.
+
+```bash
+synthetic-imaging-validate --manifest pairs.csv --scores similarity intensity_distribution --score-range 0 1 --output-json results.json
+```
+
+Outputs retain score values, normalized components, raw component metrics and protocol settings. Cohort and label summaries average per-case scores with equal case weighting. Pooled cohort distributions are a different comparison.
+
+To follow validation during training, add --history outputs/history.json --epoch 10 --run-name model_a. Use the same history path and a new epoch number at each checkpoint. The history stores global per-case means, finite observation counts and settings. Duplicate steps and changes to recorded settings within a run are rejected. Only one process should write a given history file.
+
+After installing the viz extra, add --plot-history outputs/history.png to draw curves, or --plot-output results.png for a per-case plot. Select fields with --plot-metrics mae similarity_score intensity_distribution_score. Each metric has its own panel. PNG, SVG and PDF figures are supported without a graphical display. Undefined or infinite observations are gaps, not zeros; means exclude them and counts show how many cases contributed.
+
+The Python API offers similarity_score, intensity_distribution_score, append_history, plot_results and plot_history. Saved results can be plotted without rerunning metric calculations. The runnable examples/validation_history.py demonstrates five steps using a controlled intensity offset, not a clinical benchmark.
+
 ### Further documentation in the repository
 
 - README.md: installation, package overview, CLI and API entry points.
@@ -296,6 +318,7 @@ Current limitations include the absence of a full preprocessing pipeline, automa
 - docs/dimensionality.md: shape conventions, channels and 2D/3D support.
 - docs/grouped_metrics.md: class-wise API inputs, outputs and edge cases.
 - docs/reporting.md: PDF/LaTeX options, limitations and rebuilding this guide.
+- docs/scores_and_plots.md: experimental score formulas, epoch histories and plotting examples.
 - CONTRIBUTING.md: contribution workflow and testing expectations.
 
 This document is maintained in docs/validation_guide.md. Its PDF is generated from that source, so revisions do not require editing a binary document manually.

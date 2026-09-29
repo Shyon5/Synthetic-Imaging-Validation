@@ -74,7 +74,7 @@ The optional extras are:
 | Extra | Packages | When it is needed |
 | --- | --- | --- |
 | `torch` | PyTorch `>=2.2,<3.0`, torchmetrics `>=1.3,<2.0` | Optional MS-SSIM reference backend and compatibility checks |
-| `viz` | Matplotlib `>=3.8,<4.0` | Histogram and slice plotting helpers |
+| `viz` | Matplotlib `>=3.8,<4.0` | Histograms, slices, per-case metric plots and validation curves |
 | `report` | ReportLab `>=4.4.10,<5.0` | PDF result export and generation of the partner guide; LaTeX export needs no extra dependency |
 | `test` | pytest `>=8.0,<10.0`, pytest-cov `>=5.0,<8.0`, pypdf `>=5.0,<7.0` | Running tests, measuring coverage and checking generated PDFs |
 
@@ -139,6 +139,8 @@ Metrics are grouped by the kind of comparison they make:
 - Spatial mask analysis: border occupancy, distance to image borders, centroids and combined pipeline-independent morphology reports.
 - Feature-based generative quality: Fréchet feature distance, KID, manifold precision/recall, RBF-MMD and sliced Wasserstein distance.
 - Optional class-wise evaluation for paired metrics and independent real/synthetic cohorts.
+- Experimental similarity and intensity-distribution scores on a 0-100 scale, with an explicit fixed intensity interval.
+- Optional per-case plots and validation histories across epochs or steps.
 
 The Fréchet implementation works on precomputed `[samples, features]` matrices. Those features may come from 2D images or 3D volumes, but the package does not currently provide the encoder. For that reason, the result is described as a Fréchet feature distance rather than canonical Inception FID or medical 3D-FID.
 
@@ -241,6 +243,39 @@ separately with XeLaTeX or LuaLaTeX. Outputs may contain paths and case metadata
 review them before sharing. See [docs/reporting.md](docs/reporting.md) for font
 options, value conventions and conversion of saved results without re-evaluation.
 
+### Experimental scores and validation curves
+
+Two opt-in scores summarize complementary metrics: similarity combines MS-SSIM
+with normalized MAE, while intensity distribution combines Jensen-Shannon
+divergence with normalized Wasserstein distance. Both use equal weights and
+return 0-100 values alongside their components. They are descriptive prototypes,
+not calibrated or clinically validated quality ratings.
+
+Use a fixed intensity interval matching your preprocessing; images are not
+automatically normalized. For inputs already in [0, 1]:
+
+```bash
+synthetic-imaging-validate --manifest pairs.csv --metrics mae ms_ssim js wasserstein --scores similarity intensity_distribution --score-range 0 1 --output-json results.json
+```
+
+To retain a history and draw validation curves, install the `viz` extra and add
+the history path, epoch and plot destination:
+
+```bash
+synthetic-imaging-validate --manifest epoch_10/pairs.csv --metrics mae ms_ssim --scores similarity intensity_distribution --score-range 0 1 --history outputs/history.json --epoch 10 --run-name model_a --plot-history outputs/history.png --plot-metrics mae similarity_score intensity_distribution_score
+```
+
+Repeat for later epochs with their inputs and epoch numbers. Histories record
+per-case means and contributing counts; duplicate steps and changes to recorded
+settings within a run are rejected. Use one writer per history file. This works
+with parallel evaluation, and no metric is recalculated just to make a plot.
+
+For a plot of the current cases instead, use `--plot-output results.png`.
+Figures support PNG, SVG and PDF. Python users can call `similarity_score`,
+`intensity_distribution_score`, `append_history`, `plot_results` and `plot_history`
+directly. See [Scores and validation plots](docs/scores_and_plots.md) for formulas,
+limitations, API examples and plotting saved results.
+
 ## Examples and tests
 
 The current base test suite has 100% statement and branch coverage, enforced by CI across every supported Python version and runner platform. A separate compatibility job installs PyTorch and checks the TorchMetrics backend against the native implementation on representative 2D, 3D, batched and multi-channel inputs.
@@ -253,6 +288,7 @@ python examples/validate_2d_data.py
 python examples/validate_binary_masks.py
 python examples/validate_nifti_pair.py real.nii.gz synthetic.nii.gz
 python examples/export_reports.py  # requires the report extra
+python examples/validation_history.py  # requires viz; use a fresh output directory
 python -m pytest
 ```
 
