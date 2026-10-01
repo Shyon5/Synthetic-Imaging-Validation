@@ -2,7 +2,6 @@
 
 import copy
 import importlib
-import importlib.util
 import json
 from pathlib import Path
 import subprocess
@@ -204,31 +203,19 @@ def test_grouped_api_and_evaluate_pairs_reports(tmp_path):
     write_report({"pairs": records}, tmp_path / "api.tex")
 
 
-def test_deliverable_build_and_example(tmp_path):
-    pytest.importorskip("reportlab")
+def test_published_deliverable():
     root = Path(__file__).resolve().parents[1]
-    guide = tmp_path / "guide.pdf"
-    subprocess.run([sys.executable, str(root / "scripts" / "build_validation_guide.py"),
-                    "--output", str(guide)], check=True, cwd=tmp_path, capture_output=True)
-    reader = pdf_reader(guide)
+    reader = pytest.importorskip("pypdf").PdfReader(root / "docs" / "deliverables" / "validation_guide.pdf")
     text = "\n".join(page.extract_text() for page in reader.pages)
     for phrase in ("MS-SSIM", "Hausdorff", "Frechet", "LaTeX", "--output-pdf", "NaN", "metric_selection"):
         assert phrase in text
     assert reader.outline
+
+
+def test_export_reports_example(tmp_path):
+    pytest.importorskip("reportlab")
+    root = Path(__file__).resolve().parents[1]
     subprocess.run([sys.executable, str(root / "examples" / "export_reports.py")],
                    check=True, cwd=tmp_path, capture_output=True)
     assert (tmp_path / "outputs" / "array_comparison.pdf").is_file()
     assert (tmp_path / "outputs" / "array_comparison.tex").is_file()
-
-
-def test_guide_renderer_inline_and_unclosed_code(tmp_path):
-    pytest.importorskip("reportlab")
-    path = Path(__file__).resolve().parents[1] / "scripts" / "build_validation_guide.py"
-    spec = importlib.util.spec_from_file_location("build_guide", path)
-    module = importlib.util.module_from_spec(spec)
-    spec.loader.exec_module(module)
-    assert module.inline("A & `b`") == 'A &amp; <font name="Courier">b</font>'
-    source = tmp_path / "bad.md"
-    source.write_text("# Title\n```python\nprint(1)\n")
-    with pytest.raises(ValueError, match="Unclosed"):
-        module.build(source, tmp_path / "bad.pdf")

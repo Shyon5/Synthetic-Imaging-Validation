@@ -36,6 +36,7 @@ Desktop.ini
 # Generated reports and experiment artifacts
 artifacts/
 checkpoints/
+scripts/
 outputs/
 reports/
 results/

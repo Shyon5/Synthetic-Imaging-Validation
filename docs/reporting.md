@@ -134,11 +134,7 @@ selection, usage, interpretation, and limitations:
 - [PDF deliverable](deliverables/validation_guide.pdf)
 - [Editable Markdown source](validation_guide.md)
 
-After updating the source, rebuild the PDF with the `report` extra installed:
-
-```bash
-python scripts/build_validation_guide.py
-```
-
-This script is a small renderer for the guide's own Markdown conventions, not
-a general-purpose converter. It uses no patient data and makes no network calls.
+The PDF is maintained separately from the Markdown source and is not rebuilt
+automatically. The repository does not include a guide-conversion tool.
+This is separate from exporting validation results: the CLI and API can still
+generate PDF reports with the `report` extra installed, as described above.

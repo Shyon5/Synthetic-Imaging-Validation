@@ -155,7 +155,7 @@ The Fréchet implementation works on precomputed `[samples, features]` matrices.
 
 For metric definitions and limitations, see [docs/metrics.md](docs/metrics.md). Practical guidance is collected in [docs/metric_selection.md](docs/metric_selection.md). Input pairing is described in [docs/data_loading.md](docs/data_loading.md), while [docs/grouped_metrics.md](docs/grouped_metrics.md) covers class-wise evaluation and [docs/dimensionality.md](docs/dimensionality.md) explains the 2D/3D shape conventions.
 
-For an overview suitable for project partners, use the [PDF guide](docs/deliverables/validation_guide.pdf). It covers input preparation, metric selection, examples and interpretation in one document. Its [Markdown source](docs/validation_guide.md) is editable and can be rebuilt with `python scripts/build_validation_guide.py` after installing the `report` extra.
+For an overview suitable for project partners, use the [PDF guide](docs/deliverables/validation_guide.pdf). It covers input preparation, metric selection, examples and interpretation in one document. Its [Markdown source](docs/validation_guide.md) is also available. The PDF is maintained separately; editing the Markdown does not update it automatically.
 
 ## Supported inputs and conventions
 
