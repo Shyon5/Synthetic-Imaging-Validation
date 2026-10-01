@@ -133,7 +133,7 @@ running the app. This is a browser interface, not a native folder picker.
 
 Docker cannot see arbitrary host folders entered in a browser field. To connect
 a different host folder, use **Prepare mount configuration** in the sidebar,
-download `.env` beside `compose.yaml`, and run the recreate command above. Review
+download `.env` beside `compose.yaml` and run the recreate command above. Review
 an existing `.env` before replacing it: preserve Linux UID/GID settings. The app
 does not mount drives itself or need access to the Docker socket.
 
@@ -281,8 +281,7 @@ The default `[0, 1]` assumes inputs already in that interval.
 ### Why can metrics run while a score rejects the range?
 
 In the app, a short explanation is available through the **?** next to
-**Experimental scores (optional)**. The detailed explanation is kept here,
-rather than in a separate panel on the evaluation screen.
+**Experimental scores (optional)**. The detailed explanation is kept here.
 
 Most raw error metrics do not need a declared intensity interval. If a real
 value is 100 and a synthetic value is 110, the absolute error is 10 in the
