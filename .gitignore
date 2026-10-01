@@ -19,6 +19,7 @@ docs/meeting_demo.md
 # Local environments and configuration
 .venv/
 .venv-app/
+.venv-py39/
 venv/
 .env
 .env.*

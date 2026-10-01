@@ -28,7 +28,9 @@ def _scalar_values(mapping: dict[str, Any], prefix: str = "") -> dict[str, Optio
             value = float(item)
             additions = {name: value if np.isfinite(value) else None}
         else:
-            continue
+            # Non-scalar leaves contribute no values. An explicit empty mapping
+            # also avoids Python 3.9's untraceable optimized continue branch.
+            additions = {}
         if values.keys() & additions.keys():
             raise ValueError("Ambiguous dotted metric names in results.")
         values.update(additions)

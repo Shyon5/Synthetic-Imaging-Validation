@@ -14,6 +14,19 @@ from synthetic_imaging_validation import history, plotting
 from synthetic_imaging_validation.cli import plot_history as plot_cli
 
 
+@pytest.mark.parametrize("ignored", [
+    True, False, np.bool_(True), np.bool_(False), "case", "", [1], (1,),
+    np.array([1]), np.array(1),
+])
+def test_history_ignores_nonmetric_leaves(ignored):
+    # Ignored leaves must neither become numbers nor reuse the preceding value.
+    assert history._scalar_values({"ignored": ignored}) == {}
+    assert history._scalar_values({
+        "before": 1, "ignored": ignored,
+        "nested": {"ignored": ignored, "valid": np.float64(2)}, "after": 3,
+    }) == {"before": 1.0, "nested.valid": 2.0, "after": 3.0}
+
+
 def test_history_means_counts_gaps_and_order(tmp_path):
     assert history._scalar_values({"score": {"value": 90, "protocol": {"bins": 64}}}) == {"score.value": 90}
     path = tmp_path / "nested" / "history.json"
