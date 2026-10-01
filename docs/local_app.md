@@ -280,6 +280,10 @@ The default `[0, 1]` assumes inputs already in that interval.
 
 ### Why can metrics run while a score rejects the range?
 
+In the app, a short explanation is available through the **?** next to
+**Experimental scores (optional)**. The detailed explanation is kept here,
+rather than in a separate panel on the evaluation screen.
+
 Most raw error metrics do not need a declared intensity interval. If a real
 value is 100 and a synthetic value is 110, the absolute error is 10 in the
 original units. MAE and Wasserstein can report that kind of difference directly.

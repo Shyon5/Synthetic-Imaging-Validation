@@ -24,7 +24,9 @@ def evaluation_settings(masks):
         metrics = st.multiselect("Metrics", choices, default=default_metrics, format_func=metric_label,
                                  help="Changes take effect when you press Apply evaluation settings.")
         scores = [] if masks else st.multiselect("Experimental scores (optional)", ["similarity", "intensity_distribution"], format_func=metric_label,
-                                                help="Combine metric values into an experimental 0–100 index. Higher means closer agreement under the chosen settings, not clinical quality. Unlike raw errors, scores require a fixed interval containing all input intensities.")
+                                                help=("Experimental 0–100 summaries of agreement, not clinical quality ratings.\n\n"
+                                                      "Raw errors such as MAE use the data's own units. Scores divide errors by a fixed intensity interval width; the distribution score also uses that interval for histogram bins. All input values must therefore lie within the declared bounds.\n\n"
+                                                      "Use Inspect intensity bounds if unsure, then keep the same bounds across comparisons. Normalization to [0, 1] is not required. The documentation explains the formulas and limitations in detail."))
         left, right = st.columns(2)
         width = left.text_input("Intensity range width", value="1", help="The expected maximum minus minimum, used by PSNR, SSIM and MS-SSIM. For an interval [0, 20], enter 20. This does not rescale the images. With similarity score enabled, the app uses the width of the score interval instead.")
         workers = right.number_input("Parallel workers", min_value=1, max_value=16, value=1, help="How many image pairs to evaluate at once. Start with 1 for large volumes; more workers use more RAM and are not always faster.")
@@ -32,11 +34,7 @@ def evaluation_settings(masks):
         if not masks:
             low = left.number_input("Score interval: lower bound", value=0.0, help="Must include the minimum of every input, not just the displayed slice. Use Inspect intensity bounds below if unsure.")
             high = right.number_input("Score interval: upper bound", value=1.0, help="Must include all inputs. Keep these bounds fixed across compared runs. No clipping or rescaling is performed.")
-            st.caption("Score bounds describe the values in your files, not the viewer's display window. Keep [0, 1] only if the data are already in that interval. CT, PET and other intensity scales can use different bounds; normalization to [0, 1] is not required.")
-            with st.expander("Why do scores check the interval when other metrics still run?"):
-                st.markdown("MAE and Wasserstein report an error in the data's own units, so they do not need fixed lower and upper bounds. Scores use a shared scale to turn those errors into a 0–100 index: they divide MAE or Wasserstein by the interval width. The distribution score also uses that interval for its histogram bins.")
-                st.markdown("For example, values of 100 and 110 have an absolute error of 10. That calculation is valid, but declaring that both values lie in [0, 1] is not. The score stops instead of accepting that inconsistent setup or dropping values from the histogram.")
-                st.markdown("PSNR, SSIM and MS-SSIM also depend on the intensity range width, but do not perform the score's full interval check. A returned value does not prove that the range was appropriate. Use Inspect intensity bounds below, choose bounds consistent with your preprocessing, and keep them fixed across comparisons. Widening the range just to improve a score makes comparisons misleading.")
+            st.caption("For scores, choose bounds that cover the values in your files and keep them fixed across comparisons. The viewer's display window does not change these values.")
         spacing = left.text_input("Spacing override (optional)", placeholder="1, 1, 2", help="Pixel/voxel sizes in array-axis order, such as 1, 1, 2. Leave blank to use file metadata, or unit spacing if none exists. This changes distance units, not the image grid.")
         channel = right.text_input("Channel axis (optional)", placeholder="-1", help="Leave blank for a single-channel image or volume. For multiple channels, enter the array axis that holds them; -1 means the last axis.")
         bins = left.number_input("Histogram bins", min_value=2, max_value=4096, value=64, help="How many intensity intervals to use for histogram comparisons. Keep this number fixed between experiments; more bins is not automatically better.")

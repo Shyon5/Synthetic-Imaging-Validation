@@ -33,6 +33,18 @@ def test_demo_browser_workflow(tmp_path, monkeypatch):
     assert len(list((tmp_path / "results").glob("*/results.json"))) == 1
 
 
+def test_score_explanation_is_in_contextual_help(tmp_path, monkeypatch):
+    app = launch(tmp_path, monkeypatch)
+    assert not app.exception
+    scores = widget(app, "multiselect", "Experimental scores (optional)")
+    assert "interval width" in scores.proto.help
+    assert "Normalization to [0, 1] is not required" in scores.proto.help
+    assert not any(expander.label == "Why do scores check the interval when other metrics still run?"
+                   for expander in app.expander)
+    assert widget(app, "number_input", "Score interval: lower bound").value == 0.0
+    assert widget(app, "number_input", "Score interval: upper bound").value == 1.0
+
+
 def test_mask_and_missing_data(tmp_path, monkeypatch):
     app = launch(tmp_path, monkeypatch)
     widget(app, "radio", "What are you evaluating?").set_value("Binary masks").run()
