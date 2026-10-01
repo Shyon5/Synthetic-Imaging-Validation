@@ -1,0 +1,53 @@
+<!doctype html><html lang="en"><head><meta charset="utf-8"><style>
+*{box-sizing:border-box}[hidden]{display:none!important}body{margin:0;font:14px system-ui;color:#e5edf5;background:#101d2a;border-radius:12px;padding:16px}
+.controls{display:flex;gap:16px;align-items:center;flex-wrap:wrap;margin-bottom:12px}label{display:flex;gap:6px;align-items:center}input,select{accent-color:#54d4c5}input[type=number],select{background:#1b3042;color:#edf6ff;border:1px solid #496273;border-radius:6px;padding:6px;font:inherit}input[type=number]{width:130px}input[type=range]{width:220px}input:focus,select:focus{outline:2px solid #54d4c5;outline-offset:2px}
+.panels{display:flex;gap:12px}.panel{flex:1;min-width:0;text-align:center}.frame{height:300px;display:flex;align-items:center;justify-content:center;background:#08121c}canvas{max-height:100%;max-width:100%;image-rendering:pixelated}p{margin:6px 0}small,#status{color:#b5c9d7}
+@media(max-width:650px){.frame{height:230px}.controls{gap:8px}}
+</style></head><body>
+<div class="controls"><label id="planeLabel">Plane <select id="plane" title="Display only; closest voxel planes, not resampled anatomy."></select></label><label id="sliceLabel">Slice <input id="slice" type="range" min="0" step="1"><output id="index"></output></label></div>
+<div class="controls" id="window"><label>Display minimum <input id="low" type="number" step="any" title="Display only: does not change score bounds."></label><label>Display maximum <input id="high" type="number" step="any"></label><label>Colour map <select id="cmap"><option value="gray">Grayscale</option><option value="magma">Magma</option></select></label></div>
+<div class="controls"><label><input id="difference" type="checkbox" checked><span id="differenceLabel">Absolute difference</span></label></div>
+<div class="panels"><div class="panel"><p>Real</p><div class="frame"><canvas id="real"></canvas></div><small id="axes0"></small></div><div class="panel"><p>Synthetic</p><div class="frame"><canvas id="synthetic"></canvas></div><small id="axes1"></small></div><div class="panel" id="third"><p id="thirdTitle">Absolute difference</p><div class="frame"><canvas id="delta"></canvas></div><small id="axes2"></small></div></div>
+<p id="status">Preparing preview…</p><small id="note"></small>
+<script>
+const cfg=/*PAYLOAD*/;
+const el=id=>document.getElementById(id);
+function sliceValue(volume,axis,index,x,y){
+ const s=volume.shape;if(s.length===2)return volume.values[y*s[1]+x];
+ const rem=[0,1,2].filter(i=>i!==axis),p=[0,0,0];p[axis]=index;p[rem[0]]=x;p[rem[1]]=s[rem[1]]-1-y;
+ return volume.values[(p[0]*s[1]+p[1])*s[2]+p[2]];
+}
+async function start(){
+ if(!window.DecompressionStream)throw Error('This viewer needs a recent Edge, Chrome, Firefox or Safari.');
+ for(const v of cfg.volumes){const bytes=Uint8Array.from(atob(v.data),c=>c.charCodeAt(0));const buf=await new Response(new Blob([bytes]).stream().pipeThrough(new DecompressionStream('gzip'))).arrayBuffer();const view=new DataView(buf);v.values=new Float32Array(buf.byteLength/4);for(let i=0;i<v.values.length;i++)v.values[i]=view.getFloat32(i*4,true);delete v.data;}
+ const is3d=cfg.volumes[0].shape.length===3,anatomical=cfg.volumes.every(v=>v.anatomical);
+ for(const a of [2,1,0]){const o=document.createElement('option');o.value=a;o.textContent=anatomical?({2:'Axial',1:'Coronal',0:'Sagittal'})[a]:'Array axis '+a;el('plane').appendChild(o);}
+ el('planeLabel').hidden=!is3d;el('sliceLabel').hidden=!is3d;el('low').value=cfg.low;el('high').value=cfg.high;el('window').hidden=cfg.masks;
+ el('difference').disabled=!cfg.compatible;el('difference').checked=cfg.compatible;
+ if(cfg.masks){el('differenceLabel').textContent='Mask overlap';el('thirdTitle').textContent='Mask overlap';}
+ el('note').textContent='Displayed grid: real '+cfg.volumes[0].shape.join(' × ')+', synthetic '+cfg.volumes[1].shape.join(' × ')+'. '+(cfg.step>1?'The preview keeps one voxel every '+cfg.step+' positions along each axis, so small structures may be missed. ':'No pixels or voxels are skipped. ')+'Display values use float32; metrics use the original arrays.'+(cfg.masks?' Cyan: real only; amber: synthetic only; white: overlap. Foreground includes values ≥ '+cfg.threshold+'.':'');
+ function reset(){const n=is3d?Math.min(...cfg.volumes.map(v=>v.shape[+el('plane').value])):1;el('slice').max=n-1;el('slice').value=Math.floor((n-1)/2);draw();}
+ function draw(){
+  const axis=+el('plane').value,index=+el('slice').value,low=+el('low').value,high=+el('high').value;
+  if(!Number.isFinite(low)||!Number.isFinite(high)||high<=low){el('status').textContent='Display maximum must exceed minimum.';return;}
+  el('index').textContent=index*cfg.step;el('third').hidden=!el('difference').checked;
+  for(let panel=0;panel<(el('difference').checked?3:2);panel++){
+   const v=cfg.volumes[Math.min(panel,1)],rem=is3d?[0,1,2].filter(i=>i!==axis):[1,0];
+   const w=v.shape[rem[0]],h=v.shape[rem[1]],canvas=el(['real','synthetic','delta'][panel]);canvas.width=w;canvas.height=h;
+   const ratio=w*v.spacing[rem[0]]/(h*v.spacing[rem[1]]),width=Math.min(canvas.parentElement.clientWidth,canvas.parentElement.clientHeight*ratio);canvas.style.width=width+'px';canvas.style.height=(width/ratio)+'px';
+   const ctx=canvas.getContext('2d'),pixels=ctx.createImageData(w,h);
+   for(let y=0;y<h;y++)for(let x=0;x<w;x++){
+    const a=sliceValue(v,axis,index,x,y);let color;
+    if(cfg.masks){const foreground=a>=0.5;if(panel===2){const r=sliceValue(cfg.volumes[0],axis,index,x,y)>=0.5;color=[[14,25,38],[51,199,218],[239,173,82],[236,245,252]][Number(r)+2*Number(foreground)];}else color=foreground?(panel===0?[51,199,218]:[239,173,82]):[14,25,38];}
+    else{let z=panel===2?Math.abs(sliceValue(cfg.volumes[0],axis,index,x,y)-a)/(high-low):(a-low)/(high-low);z=Math.max(0,Math.min(1,z));const c=Math.round(z*255);color=panel===2||el('cmap').value==='magma'?cfg.palette[c]:[c,c,c];}
+    pixels.data.set([...color,255],(y*w+x)*4);
+   }
+   ctx.putImageData(pixels,0,0);el('axes'+panel).textContent=is3d&&v.anatomical?({0:'P → A · bottom I → S top',1:'L → R · bottom I → S top',2:'L → R · bottom P → A top'})[axis]:'Array axes '+rem.join(' / ');
+  }
+  el('status').textContent=cfg.compatible?'Shared window and slice index. Adjusting the view does not recalculate metrics.':'The image grids differ, so the same slice number may show different locations. Overlap and difference views are unavailable.';
+ }
+ let pending=false;function schedule(){if(!pending){pending=true;requestAnimationFrame(()=>{pending=false;draw();});}}
+ el('plane').onchange=reset;for(const id of ['slice','low','high','difference','cmap'])el(id).oninput=schedule;window.addEventListener('resize',schedule);reset();window.viewerReady=true;
+}
+start().catch(e=>{el('status').textContent='Preview unavailable: '+e.message;});
+</script></body></html>

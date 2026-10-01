@@ -1,0 +1,23 @@
+services:
+  validation:
+    build: .
+    image: synthetic-imaging-validation:local
+    ports:
+      - "127.0.0.1:8501:8501"
+    user: "${SIV_UID:-1000}:${SIV_GID:-1000}"
+    volumes:
+      - type: bind
+        source: ${SIV_DATA_DIR:-./data}
+        target: /data
+        read_only: true
+      - type: bind
+        source: ${SIV_OUTPUT_DIR:-./outputs/local_app}
+        target: /output
+    read_only: true
+    tmpfs:
+      - /tmp:size=512m,mode=1777
+    cap_drop:
+      - ALL
+    security_opt:
+      - no-new-privileges:true
+    init: true

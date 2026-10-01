@@ -1,0 +1,25 @@
+[browser]
+gatherUsageStats = false
+
+[client]
+toolbarMode = "viewer"
+
+[server]
+headless = true
+enableCORS = true
+enableXsrfProtection = true
+
+[theme]
+font = "sans serif"
+
+[theme.light]
+primaryColor = "#087f80"
+backgroundColor = "#ffffff"
+secondaryBackgroundColor = "#f0f5f8"
+textColor = "#173247"
+
+[theme.dark]
+primaryColor = "#54d4c5"
+backgroundColor = "#0e1724"
+secondaryBackgroundColor = "#182636"
+textColor = "#e5edf5"

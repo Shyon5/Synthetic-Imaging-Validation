@@ -1,0 +1,18 @@
+# Allowlist: private datasets, local demos, credentials and VCS never enter the context.
+**
+!pyproject.toml
+!README.md
+!src/
+!src/**
+!apps/
+!apps/__init__.py
+!apps/local_validation/
+!apps/local_validation/**
+!.streamlit/
+!.streamlit/config.toml
+!docker/
+!docker/constraints.txt
+**/__pycache__/**
+**/*.pyc
+**/.env*
+**/secrets.toml

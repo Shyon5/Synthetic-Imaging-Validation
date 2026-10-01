@@ -285,7 +285,15 @@ python -m pytest -m "not torch" --cov --cov-report=term-missing
 
 The repository is modular. New metrics belong in the relevant metrics module and should reuse the existing input checks. Document the units, score direction, assumptions, edge cases and computational cost, then add tests. Contributions should use a short-lived branch and a pull request so that review and CI run before merging into main.
 
-Current limitations include the absence of a full preprocessing pipeline, automatic feature extraction, built-in confidence intervals and Docker packaging. Reports describe the measured comparison; they do not replace visual review, task-specific validation, privacy assessment or clinical evaluation.
+Current limitations include the absence of a full preprocessing pipeline, automatic feature extraction and built-in confidence intervals. An optional Docker application provides a local browser interface for paired images and masks, independent intensity cohorts, precomputed feature matrices, report downloads and epoch histories. It includes readable metric labels, control explanations, light/dark themes and a read-only 2D/3D slice viewer. Reports describe the measured comparison; they do not replace visual review, task-specific validation, privacy assessment or clinical evaluation.
+
+In the app, edit metrics and parameters together, press Apply evaluation settings, then Run validation. The viewer handles slice navigation and windowing in the browser without rerunning calculations. Up to 128 and Up to 256 are maximum preview sizes, not forced resizes: two 192-cubed volumes stay 192-cubed with Up to 256. If larger images need reducing, the viewer keeps regularly spaced voxels and shows the resulting shape. Small structures can be missed. Original keeps every voxel, but warns about longer loading and greater memory use. Previews above 128 MiB of combined uncompressed float32 voxel data are refused rather than silently reduced. All preview modes use float32 for display; windowing and NIfTI reorientation never alter the original metric inputs.
+
+Score bounds must contain all input intensities: the default [0, 1] is not suitable for every CT or PET dataset. Inspect intensity bounds scans the selected files without changing them. Choose a common interval consistent with preprocessing and retain it across compared experiments. When similarity score is enabled, that interval also defines the range width for its structural metrics. No implicit normalization or clipping is applied.
+
+Raw errors such as MAE and Wasserstein can be calculated in the original intensity units without declaring bounds. Scores additionally divide these errors by the interval width to express agreement on a 0-100 scale, and the distribution score uses fixed histogram bins. Values outside the declared interval therefore cause an error, even if the raw metrics can be computed. This protects the score's assumptions; it does not require normalization to [0, 1]. PSNR, SSIM and MS-SSIM also depend on the range width but do not perform the same full bounds check. A returned value alone does not establish that their range setting was appropriate.
+
+The sidebar can switch folders within existing Docker mounts and prepare a local .env file for different host folders. A changed host mount requires recreating the container. Independent cohort comparison pools voxels, so larger images contribute more weight; it is not an average of case scores. Feature workflows require an externally defined encoder and optionally accept one sample label per feature row. Report and history tools reuse saved JSON without recomputing metrics. Custom Python callables, preprocessing helpers and training-loop integration remain API tasks. See docs/local_app.md for setup, resource limits and the workflow coverage table.
 
 ## 10. Experimental scores and validation curves
 
@@ -319,6 +327,7 @@ The Python API offers similarity_score, intensity_distribution_score, append_his
 - docs/grouped_metrics.md: class-wise API inputs, outputs and edge cases.
 - docs/reporting.md: PDF/LaTeX options, limitations and rebuilding this guide.
 - docs/scores_and_plots.md: experimental score formulas, epoch histories and plotting examples.
+- docs/local_app.md: local browser application, Docker installation and dataset mounts.
 - CONTRIBUTING.md: contribution workflow and testing expectations.
 
 This document is maintained in docs/validation_guide.md. Its PDF is generated from that source, so revisions do not require editing a binary document manually.

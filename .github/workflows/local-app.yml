@@ -1,0 +1,43 @@
+name: Local app and Docker
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  app:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+      - name: Install optional app and test tools
+        run: python -m pip install -c docker/constraints.txt -e '.[app,test]' 'playwright>=1.50,<2'
+      - name: Install headless browser for slice-viewer regression tests
+        run: python -m playwright install --with-deps chromium
+      - name: Exercise pairing, exports and browser workflow
+        env:
+          SIV_BROWSER_TESTS: '1'
+        run: python -m pytest apps/local_validation/tests
+      - name: Build local image (no publication)
+        run: docker build -t siv-app:test .
+      - name: Smoke-test read-only container and reports
+        shell: bash
+        run: |
+          docker run --rm --read-only --tmpfs /tmp:mode=1777 siv-app:test python -c "from pathlib import Path; from apps.local_validation.service import make_demo, plan_pairs, run_validation; root=Path('/tmp/demo'); make_demo(root); pairs=plan_pairs(root, 'manifest', manifest='pairs.csv'); report, output=run_validation(pairs, {'metrics':['mae','ssim'], 'data_range':1}, Path('/tmp/results')); assert report['summary']['count']==4; assert (output/'results.pdf').is_file()"
+          docker run -d --name siv-app-test --read-only --tmpfs /tmp:mode=1777 -p 127.0.0.1:8501:8501 siv-app:test
+          for attempt in $(seq 1 30); do
+            if curl --fail http://127.0.0.1:8501/_stcore/health; then exit 0; fi
+            sleep 2
+          done
+          docker logs siv-app-test
+          exit 1
+      - name: Stop test container
+        if: always()
+        run: docker rm -f siv-app-test || true

@@ -18,10 +18,12 @@ docs/meeting_demo.md
 
 # Local environments and configuration
 .venv/
+.venv-app/
 venv/
 .env
 .env.*
 !.env.example
+.streamlit/secrets.toml
 
 # IDE and operating-system files
 .idea/

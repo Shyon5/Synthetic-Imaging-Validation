@@ -8,6 +8,13 @@ Validation remains separate from the code that generated the images. The package
 
 ## Installation
 
+Prefer a graphical interface? The optional [local Docker app](docs/local_app.md)
+lets you select image pairs or a manifest, calculate metrics and scores, inspect
+tables/plots and download reports in your browser. A browser-side slice viewer,
+feature/cohort comparisons, epoch histories, metric explanations and light/dark
+themes are included. Data stays on your computer.
+The guide includes Docker Desktop installation instructions for Windows.
+
 Python 3.9 through 3.14 are supported. The base package is tested on every supported Python version using GitHub's `ubuntu-latest`, `windows-latest` and `macos-latest` hosted runners. The matrix therefore tracks the latest runner image for each operating system; older OS releases are not tested. The optional TorchMetrics compatibility backend is checked separately on Ubuntu. Python 3.9 is included for compatibility with existing research environments, although it is end-of-life upstream and should not be preferred for new installations.
 
 From a local checkout, install the core package with:
@@ -75,6 +82,7 @@ The optional extras are:
 | --- | --- | --- |
 | `torch` | PyTorch `>=2.2,<3.0`, torchmetrics `>=1.3,<2.0` | Optional MS-SSIM reference backend and compatibility checks |
 | `viz` | Matplotlib `>=3.8,<4.0` | Histograms, slices, per-case metric plots and validation curves |
+| `app` | Streamlit `>=1.64,<2.0`, plus Matplotlib and ReportLab | Optional local browser application (Python >=3.10); Docker uses Python 3.12 and a constrained UI release |
 | `report` | ReportLab `>=4.4.10,<5.0` | PDF result export and generation of the partner guide; LaTeX export needs no extra dependency |
 | `test` | pytest `>=8.0,<10.0`, pytest-cov `>=5.0,<8.0`, pypdf `>=5.0,<7.0` | Running tests, measuring coverage and checking generated PDFs |
 
@@ -315,6 +323,32 @@ New metrics should fit the existing input and validation conventions:
 4. Add identical-input, perturbed-input, invalid-shape and non-finite-input tests.
 5. Add CLI exposure only when the metric has unambiguous file-level inputs.
 
-## Future Docker support
+## Local graphical application
 
-Docker is intentionally out of scope for the first release. The package and CLI do not assume local paths and write only to destinations selected by the user, so container support can be added later without changing the metric APIs. Other likely additions are optional resampling, confidence intervals and validated medical-imaging encoders.
+An optional Docker image provides a local browser interface, with CPU metrics,
+native MS-SSIM, experimental scores, per-label summaries and downloadable
+JSON/CSV/PDF/LaTeX results. No Python or PyTorch installation is needed on the host.
+
+With Docker running, create `data` and `outputs/local_app`, then run from this folder:
+
+```text
+docker compose up --build -d
+```
+
+Open **http://localhost:8501** and select **Try example data** for a first run.
+Use `docker compose stop` to stop the app. Input folders are read-only and each
+evaluation saves to a new result directory. Apply metric settings together,
+then run; slice/window adjustments happen in the browser without rerunning
+Python. The sidebar lets you change folders within the mounted workspace.
+Other workspaces cover independent intensity cohorts, precomputed feature
+matrices (including per-label results), report conversion and epoch histories.
+The app is local and single-user. Custom Python callables, preprocessing helpers
+and encoder integration remain API tasks; it does not extract image features.
+
+See [Local application with Docker](docs/local_app.md) for Docker installation,
+mounting your datasets, Linux permissions, limitations and troubleshooting.
+The UI has separate tests; the core package's coverage claim does not cover
+the entire application. The Docker workflow builds/tests but never publishes images.
+
+Future extensions may include optional resampling, confidence intervals and
+validated medical-imaging encoders.

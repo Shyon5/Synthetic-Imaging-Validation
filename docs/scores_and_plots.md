@@ -47,6 +47,29 @@ The package does not normalize the images for you. Non-finite values and values
 outside the interval raise errors; small floating-point endpoint errors are
 tolerated. Histogram calculations clamp only those endpoint rounding errors.
 
+### Why raw metrics may work while scores reject the same inputs
+
+MAE and Wasserstein return differences in the data's own units; they do not need
+you to declare an intensity interval. For example, values of 100 and 110 have an
+absolute error of 10 regardless of any score settings.
+
+A score normalizes that error by `high - low` to place it on a common scale.
+The distribution score also fixes its histogram edges to those bounds. It first
+checks that all values actually fall inside the declared interval. Otherwise,
+normalization would use an inconsistent scale and histogram calculations could
+leave values out. Even identical images outside the bounds are rejected: an
+error of zero does not make the declared interval correct.
+
+PSNR, SSIM and MS-SSIM also depend on their `data_range`, but do not enforce the
+score's full interval check. They may return a number with an inappropriate
+range; that is not evidence that the settings were suitable. Standalone JS/KL
+with no fixed `value_range` instead choose a range spanning the observed values.
+
+In the local app, use **Inspect intensity bounds** to check your inputs, then
+set a common interval consistent with the preprocessing. Normalization to
+`[0, 1]` is optional, not a prerequisite. Do not widen the interval just to
+increase a score, or choose a new one for every patient or epoch.
+
 Keep the same interval and bin count across cases, epochs and models. Do not
 derive a separate range from each image. An unnecessarily wide interval makes
 intensity differences look smaller. Large backgrounds can also dominate both
