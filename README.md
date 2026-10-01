@@ -14,6 +14,7 @@ tables/plots and download reports in your browser. A browser-side slice viewer,
 feature/cohort comparisons, epoch histories, metric explanations and light/dark
 themes are included. Data stays on your computer.
 The guide includes Docker Desktop installation instructions for Windows.
+The Docker application will be further improved in the future, the current version is the starting point.
 
 Python 3.9 through 3.14 are supported. The base package is tested on every supported Python version using GitHub's `ubuntu-latest`, `windows-latest` and `macos-latest` hosted runners. The matrix therefore tracks the latest runner image for each operating system; older OS releases are not tested. The optional TorchMetrics compatibility backend is checked separately on Ubuntu. Python 3.9 is included for compatibility with existing research environments, although it is end-of-life upstream and should not be preferred for new installations.
 
