@@ -89,7 +89,8 @@ def extract_slice(image: PreviewImage, axis: int, index: int) -> tuple[np.ndarra
     remaining = [i for i in range(3) if i != axis]
     aspect = image.spacing[remaining[1]] / image.spacing[remaining[0]]
     if image.anatomical:
-        labels = {0: ("P → A", "I → S"), 1: ("L → R", "I → S"), 2: ("L → R", "P → A")}
+        plane = np.fliplr(plane)
+        labels = {0: ("A → P", "I → S"), 1: ("R → L", "I → S"), 2: ("R → L", "P → A")}
         xlabel, ylabel = labels[axis]
     else:
         xlabel, ylabel = f"Array axis {remaining[0]} →", f"Array axis {remaining[1]} →"
@@ -101,7 +102,7 @@ def slice_figure(real: PreviewImage, synthetic: PreviewImage, *, axis: int = 2, 
                  threshold: float = 0.5, difference: bool = False, cmap: str = "gray") -> Figure:
     """Plot shared-window slices and an optional exact-grid difference/overlap panel.
 
-    3D slices use neurological display (R on the right for axial/coronal RAS).
+    Anatomical 3D slices use radiological display (R on screen left); sagittal A is left.
     Binary masks use the same ``>= threshold`` rule as the metric package.
     Windowing, channel selection and orientation here affect only this figure.
     """

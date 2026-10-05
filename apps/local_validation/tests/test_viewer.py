@@ -45,7 +45,8 @@ def test_nifti_orientation_spacing_and_all_planes(tmp_path):
     assert nib.aff2axcodes(image.affine) == ("R", "A", "S")
     for axis, aspect in ((0, 4 / 3), (1, 4 / 2), (2, 3 / 2)):
         plane, actual, xlabel, ylabel = extract_slice(image, axis, 1)
-        np.testing.assert_array_equal(plane, np.take(image.array, 1, axis=axis).T)
+        np.testing.assert_array_equal(plane, np.fliplr(np.take(image.array, 1, axis=axis).T))
+        assert xlabel == ("A → P" if axis == 0 else "R → L")
         assert actual == pytest.approx(aspect)
         assert "→" in xlabel and "→" in ylabel
     assert path.read_bytes() == before

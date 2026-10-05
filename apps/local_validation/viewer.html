@@ -14,7 +14,7 @@ const cfg=/*PAYLOAD*/;
 const el=id=>document.getElementById(id);
 function sliceValue(volume,axis,index,x,y){
  const s=volume.shape;if(s.length===2)return volume.values[y*s[1]+x];
- const rem=[0,1,2].filter(i=>i!==axis),p=[0,0,0];p[axis]=index;p[rem[0]]=x;p[rem[1]]=s[rem[1]]-1-y;
+ const rem=[0,1,2].filter(i=>i!==axis),p=[0,0,0];p[axis]=index;p[rem[0]]=volume.anatomical?s[rem[0]]-1-x:x;p[rem[1]]=s[rem[1]]-1-y;
  return volume.values[(p[0]*s[1]+p[1])*s[2]+p[2]];
 }
 async function start(){
@@ -42,7 +42,7 @@ async function start(){
     else{let z=panel===2?Math.abs(sliceValue(cfg.volumes[0],axis,index,x,y)-a)/(high-low):(a-low)/(high-low);z=Math.max(0,Math.min(1,z));const c=Math.round(z*255);color=panel===2||el('cmap').value==='magma'?cfg.palette[c]:[c,c,c];}
     pixels.data.set([...color,255],(y*w+x)*4);
    }
-   ctx.putImageData(pixels,0,0);el('axes'+panel).textContent=is3d&&v.anatomical?({0:'P → A · bottom I → S top',1:'L → R · bottom I → S top',2:'L → R · bottom P → A top'})[axis]:'Array axes '+rem.join(' / ');
+   ctx.putImageData(pixels,0,0);el('axes'+panel).textContent=is3d&&v.anatomical?({0:'A → P · bottom I → S top',1:'R → L · bottom I → S top',2:'R → L · bottom P → A top'})[axis]:'Array axes '+rem.join(' / ');
   }
   el('status').textContent=cfg.compatible?'Shared window and slice index. Adjusting the view does not recalculate metrics.':'The image grids differ, so the same slice number may show different locations. Overlap and difference views are unavailable.';
  }
