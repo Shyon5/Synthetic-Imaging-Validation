@@ -1,73 +1,128 @@
-"""Batch metric-setting changes rather than rerunning on every selection."""
+"""Evaluation controls with reusable, explicitly applied settings."""
 import streamlit as st
 from .metric_labels import metric_label, metric_help
+from .profiles import IMAGE_METRICS, MASK_METRICS, defaults, validate_settings, export_profile, import_profile
 
-IMAGE_METRICS = ["mae", "mse", "rmse", "nrmse", "psnr", "ssim", "ms_ssim", "wasserstein", "js", "kl",
-                 "intensity_statistics", "histogram", "compare_distributions"]
-MASK_METRICS = ["dice", "iou", "hausdorff", "hausdorff95", "average_surface_distance", "measure_ratio",
-                "foreground_fraction", "connected_components", "border", "surface_statistics",
-                "component_measures", "distance_to_border", "centroid", "mask_spatial_report"]
+
+def _text(values):
+    return ", ".join(map(str, values)) if values is not None else ""
 
 
 def evaluation_settings(masks):
-    """Return the last explicitly submitted, validated settings for this image kind."""
+    """Return active settings; importing a profile never restores file paths."""
     key = "mask" if masks else "image"
-    default_metrics = ["dice", "iou", "hausdorff95"] if masks else ["mae", "rmse", "ssim", "ms_ssim", "wasserstein"]
-    defaults = {"metrics": default_metrics, "scores": [], "score_range": [0.0, 1.0], "data_range": 1.0,
-                "workers": 1, "threshold": 0.5, "bins": 64, "spacing": None, "channel_axis": None,
-                "batch_axis": None, "border_width": [1], "connectivity": None, "ms_ssim_backend": "numpy"}
+    current = st.session_state.get(f"settings_{key}", defaults(masks))
+    with st.expander("Save or reuse evaluation settings"):
+        st.caption("Reuse the same metrics and parameters on another dataset. Files, case labels and folders are not included.")
+        uploaded = st.file_uploader("Settings JSON", type=["json"], key=f"profile_{key}",
+                                    help="Choose an exported profile or settings.json from a previous paired evaluation.")
+        if st.button("Load settings", key=f"load_{key}"):
+            try:
+                if uploaded is None:
+                    raise ValueError("Choose a settings file first.")
+                restored = import_profile(uploaded.getvalue(), masks)
+                st.session_state[f"settings_{key}"] = restored
+                st.session_state[f"settings_revision_{key}"] = st.session_state.get(f"settings_revision_{key}", 0) + 1
+                st.rerun()
+            except ValueError as exc:
+                st.error(str(exc))
+    initial = current
+    revision = st.session_state.get(f"settings_revision_{key}", 0)
     choices = MASK_METRICS if masks else IMAGE_METRICS
     with st.popover("Metric guide"):
         for name in choices:
             st.markdown(f"**{metric_label(name)}** — {metric_help(name)}")
-    with st.form(f"evaluation_{key}"):
-        metrics = st.multiselect("Metrics", choices, default=default_metrics, format_func=metric_label,
-                                 help="Changes take effect when you press Apply evaluation settings.")
-        scores = [] if masks else st.multiselect("Experimental scores (optional)", ["similarity", "intensity_distribution"], format_func=metric_label,
-                                                help=("Experimental 0–100 summaries of agreement, not clinical quality ratings.\n\n"
-                                                      "Raw errors such as MAE use the data's own units. Scores divide errors by a fixed intensity interval width; the distribution score also uses that interval for histogram bins. All input values must therefore lie within the declared bounds.\n\n"
-                                                      "Use Inspect intensity bounds if unsure, then keep the same bounds across comparisons. Normalization to [0, 1] is not required. The documentation explains the formulas and limitations in detail."))
+    metrics = st.multiselect("Metrics", choices, default=initial["metrics"], format_func=metric_label,
+                            key=f"metrics_{key}_{revision}", help="Select metrics, then apply the settings below.")
+    scores = [] if masks else st.multiselect(
+        "Experimental scores (optional)", ["similarity", "intensity_distribution"],
+        default=initial["scores"], format_func=metric_label, key=f"scores_{key}_{revision}",
+        help=("Experimental 0–100 summaries, not clinical quality ratings. Scores use a fixed intensity interval width. "
+              "All input values must fit within the declared bounds. Normalization to [0, 1] is not required."))
+    st.caption("Only settings used by your selection are shown. Apply changes before running.")
+    with st.form(f"evaluation_{key}_{revision}"):
         left, right = st.columns(2)
-        width = left.text_input("Intensity range width", value="1", help="The expected maximum minus minimum, used by PSNR, SSIM and MS-SSIM. For an interval [0, 20], enter 20. This does not rescale the images. With similarity score enabled, the app uses the width of the score interval instead.")
-        workers = right.number_input("Parallel workers", min_value=1, max_value=16, value=1, help="How many image pairs to evaluate at once. Start with 1 for large volumes; more workers use more RAM and are not always faster.")
-        low, high = 0.0, 1.0
-        if not masks:
-            low = left.number_input("Score interval: lower bound", value=0.0, help="Must include the minimum of every input, not just the displayed slice. Use Inspect intensity bounds below if unsure.")
-            high = right.number_input("Score interval: upper bound", value=1.0, help="Must include all inputs. Keep these bounds fixed across compared runs. No clipping or rescaling is performed.")
-            st.caption("For scores, choose bounds that cover the values in your files and keep them fixed across comparisons. The viewer's display window does not change these values.")
-        spacing = left.text_input("Spacing override (optional)", placeholder="1, 1, 2", help="Pixel/voxel sizes in array-axis order, such as 1, 1, 2. Leave blank to use file metadata, or unit spacing if none exists. This changes distance units, not the image grid.")
-        channel = right.text_input("Channel axis (optional)", placeholder="-1", help="Leave blank for a single-channel image or volume. For multiple channels, enter the array axis that holds them; -1 means the last axis.")
-        bins = left.number_input("Histogram bins", min_value=2, max_value=4096, value=64, help="How many intensity intervals to use for histogram comparisons. Keep this number fixed between experiments; more bins is not automatically better.")
-        threshold = right.number_input("Binary mask threshold", value=0.5, help="Foreground includes values equal to the threshold.")
+        width = initial["data_range"]
+        if not masks and set(metrics) & {"psnr", "ssim", "ms_ssim"} and "similarity" not in scores:
+            raw_width = left.text_input("Intensity range width", value="" if width is None else str(width),
+                                       help="Expected maximum minus minimum. For [0, 20], enter 20. This does not rescale images.")
+        else:
+            raw_width = "" if width is None else str(width)
+        workers = right.number_input("Parallel workers", min_value=1, max_value=16, value=initial["workers"],
+                                     help="Pairs evaluated at once. Start with 1 for large volumes; more workers need more RAM.")
+        low, high = initial["score_range"]
+        if scores:
+            low = left.number_input("Score interval: lower bound", value=float(low), help="Use fixed bounds for the study, not different bounds for each image.")
+            high = right.number_input("Score interval: upper bound", value=float(high), help="All voxels must fit within these bounds. No clipping is applied.")
+        threshold = initial["threshold"]
+        if masks:
+            threshold = right.number_input("Binary mask threshold", value=float(threshold), help="Values at or above the threshold are foreground.")
+        bins = initial["bins"]
+        if set(metrics) & {"js", "kl", "histogram", "compare_distributions"} or "intensity_distribution" in scores:
+            bins = left.number_input("Histogram bins", min_value=2, max_value=4096, value=bins)
+        spacing, channel = _text(initial["spacing"]), initial["channel_axis"]
+        if masks:
+            spacing = left.text_input("Spacing override (optional)", value=spacing, placeholder="1, 1, 2",
+                                      help="Pixel/voxel size in array-axis order. Leave blank to use file metadata.")
+        else:
+            channel = right.text_input("Channel axis (optional)", value="" if channel is None else str(channel),
+                                       help="Leave blank for a single-channel image. -1 means the last array axis.")
         with st.expander("Advanced parameters"):
-            batch = st.text_input("Batch axis (optional)", help="Use only if one array contains several images along an extra axis. This option applies to SSIM/MS-SSIM, not all metrics, and cannot be used with scores. Separate files are clearer when you need one result per case.")
-            border = st.text_input("Border width (pixels/voxels)", value="1", help="One width for every axis, or comma-separated per-axis widths.")
-            connectivity = st.selectbox("Connectivity for extended mask reports", [None, 1, 2, 3], format_func=lambda n: "Default" if n is None else str(n), help="Controls which neighbouring foreground pixels/voxels count as connected. 1 uses direct neighbours; higher values also connect diagonals. Choose at most 2 for 2D, or 3 for 3D. Applies to extended mask reports, not the original CLI metrics.")
-            percentiles = st.text_input("Intensity percentiles", value="1, 5, 25, 50, 75, 95, 99")
-            backend = st.selectbox("MS-SSIM backend", ["numpy", "torchmetrics"], help="NumPy is the lightweight default. Torchmetrics requires the optional torch extra; it is not bundled in the standard Docker image.")
-            mismatch = st.checkbox("Allow different NIfTI geometry", help="Usually leave this off. It bypasses checks on file spacing and orientation, but does not align images or change their shapes. Only use it when you have independently established that the comparison is meaningful.")
-            plot_fields = st.text_input("Plot fields (optional)", help="Comma-separated exported identifiers. Defaults to scores, or up to six scalar metric fields.")
-            pdf_font = st.text_input("PDF font file (optional)", help="Path to a .ttf font inside the data folder, for labels not covered by the default PDF font.")
+            batch = initial["batch_axis"]
+            if not masks and set(metrics) & {"ssim", "ms_ssim"} and not scores:
+                batch = st.text_input("Batch axis (optional)", value="" if batch is None else str(batch),
+                                     help="For arrays with multiple images. Applies to SSIM/MS-SSIM only; separate files give clearer per-case reports.")
+            normalization = initial.get("nrmse_normalization", "range")
+            if "nrmse" in metrics:
+                normalization = st.selectbox("NRMSE normalization", ["range", "mean", "l2"],
+                                             index=["range", "mean", "l2"].index(normalization),
+                                             help="Reference range, absolute mean, or root-mean-square intensity. Keep the same choice across comparisons.")
+            border = _text(initial["border_width"])
+            connectivity = initial["connectivity"]
+            if masks:
+                border = st.text_input("Border width (pixels/voxels)", value=border)
+                connectivity = st.selectbox("Connectivity for extended mask reports", [None, 1, 2, 3],
+                                            index=[None, 1, 2, 3].index(connectivity),
+                                            format_func=lambda n: "Default" if n is None else str(n),
+                                            help="1 connects direct neighbours. Higher values include diagonals. At most 2 in 2D, 3 in 3D. Extended reports only.")
+            percentiles = _text(initial.get("percentiles", [1, 5, 25, 50, 75, 95, 99]))
+            if set(metrics) & {"intensity_statistics", "compare_distributions"}:
+                percentiles = st.text_input("Intensity percentiles", value=percentiles)
+            backend = initial["ms_ssim_backend"]
+            if "ms_ssim" in metrics or "similarity" in scores:
+                backend = st.selectbox("MS-SSIM backend", ["numpy", "torchmetrics"],
+                                       index=["numpy", "torchmetrics"].index(backend),
+                                       help="NumPy is included. TorchMetrics needs extra dependencies and is not in the standard Docker image.")
+            mismatch = st.checkbox("Allow different NIfTI geometry", value=initial.get("allow_spatial_mismatch", False),
+                                   help="Usually leave off. This skips geometry checks; it does not align images.")
+            plot_fields = st.text_input("Plot fields (optional)", value=_text(initial.get("plot_metrics")),
+                                        help="Exported metric names, separated by commas. Blank uses the selected metrics.")
+            pdf_font = st.text_input("PDF font file (optional)", value=current.get("pdf_font") or "",
+                                     help="A .ttf file inside the data folder, for characters missing from the default font.")
         apply = st.form_submit_button("Apply evaluation settings")
     if apply:
         try:
-            options = {"metrics": metrics, "scores": scores, "score_range": [low, high],
-                       "data_range": high - low if "similarity" in scores else (float(width) if width.strip() else None),
-                       "spacing": [float(v) for v in spacing.split(",")] if spacing.strip() else None,
-                       "channel_axis": int(channel) if channel.strip() else None,
-                       "batch_axis": int(batch) if batch.strip() else None,
-                       "workers": int(workers), "bins": int(bins), "threshold": threshold,
-                       "border_width": [int(v) for v in border.split(",")], "connectivity": connectivity,
-                       "percentiles": [float(v) for v in percentiles.split(",")],
-                       "ms_ssim_backend": backend, "allow_spatial_mismatch": mismatch,
-                       "pdf_font": pdf_font.strip() or None,
-                       "plot_metrics": [v.strip() for v in plot_fields.split(",") if v.strip()] or [s + "_score" for s in scores] or metrics[:6]}
-            if scores and high <= low:
-                raise ValueError("Score upper bound must exceed lower bound.")
-            st.session_state[f"settings_{key}"] = options
+            candidate = dict(metrics=metrics, scores=scores, score_range=[low, high],
+                             data_range=float(raw_width) if raw_width.strip() else None,
+                             workers=int(workers), threshold=threshold, bins=int(bins),
+                             spacing=[float(v) for v in spacing.split(",")] if spacing.strip() else None,
+                             channel_axis=int(channel) if channel not in (None, "") else None,
+                             batch_axis=None if scores else (int(batch) if batch not in (None, "") else None),
+                             border_width=[int(v) for v in border.split(",")], connectivity=connectivity,
+                             percentiles=[float(v) for v in percentiles.split(",")],
+                             ms_ssim_backend=backend, allow_spatial_mismatch=mismatch,
+                             plot_metrics=[v.strip() for v in plot_fields.split(",") if v.strip()] or None,
+                             nrmse_normalization=normalization)
+            current = validate_settings(candidate, masks)
+            current["pdf_font"] = pdf_font.strip() or None
+            st.session_state[f"settings_{key}"] = current
             st.success("Settings applied.")
         except ValueError as exc:
             st.error(f"Settings not applied: {exc}")
-    options = st.session_state.get(f"settings_{key}", defaults)
-    st.caption("Ready to calculate: " + ", ".join(metric_label(name) for name in options["metrics"] + options["scores"]) + ". Press Apply evaluation settings after making changes, then Run validation.")
-    return options.copy()
+    if metrics != current["metrics"] or scores != current["scores"]:
+        st.warning("Your selection has changed. Apply the settings before checking or running.")
+    st.caption("Active: " + ", ".join(metric_label(n) for n in current["metrics"] + current["scores"]))
+    st.download_button("Download evaluation settings", export_profile(current, masks),
+                       file_name=f"{key}_evaluation_settings.json", mime="application/json",
+                       on_click="ignore", key=f"export_{key}")
+    return current.copy()

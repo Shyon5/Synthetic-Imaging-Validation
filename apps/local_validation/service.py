@@ -157,6 +157,9 @@ def run_validation(pairs: list[Pair], options: dict, output_root: Path,
     if unknown:
         raise ValueError(f"Unknown metrics: {sorted(unknown)}")
     cli_metrics = [name for name in metrics if name in validate.SUPPORTED_METRICS]
+    custom_nrmse = "nrmse" in metrics and options.get("nrmse_normalization", "range") != "range"
+    if custom_nrmse:
+        cli_metrics.remove("nrmse")
     # A cheap placeholder makes the unchanged CLI parser usable for API-only metrics.
     common = ["--metrics", *(cli_metrics or ["mae"])]
     for key, flag in (("data_range", "--data-range"), ("threshold", "--threshold"),
@@ -181,6 +184,11 @@ def run_validation(pairs: list[Pair], options: dict, output_root: Path,
             result = validate.calculate_metrics(args)
             if not cli_metrics:
                 result.pop("mae", None)
+            if custom_nrmse:
+                from synthetic_imaging_validation import load_pair, nrmse
+                a, b = load_pair(pair.real, pair.synthetic,
+                                 require_spatial_match=not options.get("allow_spatial_mismatch", False))
+                result["nrmse"] = nrmse(a.array, b.array, normalization=options["nrmse_normalization"])
             result.update(calculate_extras(pair, options))
             return result
         except (ValueError, OSError, TypeError, ImportError) as exc:
@@ -235,3 +243,21 @@ def save_report(report: dict, options: dict, output_root: Path) -> tuple[dict, P
             if path.suffix != ".zip":
                 bundle.write(path, path.name)
     return report, destination
+
+
+def record_run_history(report, options, output_root, *, filename="history.json", run="validation", step=0):
+    """Append a completed result with its saved metric settings, not current controls."""
+    from synthetic_imaging_validation import append_history
+    from .profiles import defaults
+    if not filename.strip() or Path(filename).suffix.lower() != ".json":
+        raise ValueError("Choose a .json history filename.")
+    path = (output_root / filename).resolve()
+    if not path.is_relative_to(output_root.resolve()):
+        raise ValueError("History must stay inside the results folder.")
+    if not run.strip():
+        raise ValueError("Enter a run name.")
+    # Leave paths, display choices and worker count out of the numerical protocol.
+    fields = set(defaults()) - {"workers", "plot_metrics"}
+    protocol = {key: value for key, value in options.items() if key in fields}
+    append_history(path, report, step=step, run=run.strip(), protocol={"evaluation_settings": protocol})
+    return path

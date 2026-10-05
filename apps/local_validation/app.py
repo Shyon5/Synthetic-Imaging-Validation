@@ -1,15 +1,17 @@
 """Local validation workspace; all numerical definitions stay in the core package."""
 import os
+import json
 import tempfile
 from pathlib import Path
 import streamlit as st
-from apps.local_validation.service import catalogue, make_demo, plan_pairs, run_validation, inside
+from apps.local_validation.service import catalogue, make_demo, plan_pairs, run_validation, inside, record_run_history
 from apps.local_validation.metric_labels import metric_label
 from apps.local_validation.viewer_ui import render_viewer
 from apps.local_validation.workspace import workspace_controls
 from apps.local_validation.settings_ui import evaluation_settings
 from apps.local_validation.advanced import observed_range
 from apps.local_validation.advanced_ui import render_advanced
+from apps.local_validation.preflight import check_inputs
 
 st.set_page_config(page_title="Synthetic Imaging Validation", page_icon="◈", layout="wide")
 st.markdown("""
@@ -44,6 +46,16 @@ with st.sidebar:
     st.info("Local research tool, not a diagnostic device. Reports can contain case IDs and paths.")
     refresh = st.button("Refresh file list", help="Refresh after adding or moving files. Image contents are never cached globally.")
 
+with st.expander("Help me choose a workflow"):
+    goal = st.radio("What do you have?", ["Matching images or masks", "Two datasets without matching patients",
+                                         "Feature vectors", "Saved results"], horizontal=True)
+    advice = {
+        "Matching images or masks": "Choose Paired images and masks. Similarity and overlap need the same anatomy on a common grid; matching filenames alone are not enough.",
+        "Two datasets without matching patients": "Choose Independent intensity cohorts. Compare intensity distributions, not SSIM or Dice between unrelated patients. This does not measure anatomical realism.",
+        "Feature vectors": "Choose Feature distributions. Both datasets must use the same encoder, weights and preprocessing. Small groups make estimates less reliable.",
+        "Saved results": "Choose Reports and history to export reports or plot progress across epochs without repeating calculations.",
+    }
+    st.info(advice[goal])
 workflow = st.selectbox("Workspace", ["Paired images and masks", "Independent intensity cohorts", "Feature distributions", "Reports and history"],
                        help="Choose paired images when each synthetic image has an aligned real reference. Choose independent cohorts when the datasets have no one-to-one pairing. Feature comparisons use vectors you have already extracted. Reports and history works with saved results.")
 if workflow != "Paired images and masks":
@@ -103,11 +115,12 @@ render_viewer(data_root, mode, real=real, synthetic=synthetic, manifest=manifest
               threshold=options["threshold"], pairing_options=pairing_options)
 
 st.subheader("3 · Review and run")
-left, middle, right = st.columns(3)
+left, middle, check_column, right = st.columns(4)
 preview = left.button("Preview pairing", width="stretch")
 inspect = middle.button("Inspect intensity bounds", width="stretch", help="Reads all selected images, one at a time. Reports observed bounds; does not alter settings or inputs.")
+check = check_column.button("Check inputs", width="stretch", help="Read each pair and check shape, geometry, intensity bounds and selected settings. No metrics or output files are created.")
 execute = right.button("Run validation", type="primary", width="stretch")
-if preview or inspect or execute:
+if preview or inspect or check or execute:
     with tempfile.TemporaryDirectory(prefix="siv-example-") as temporary:
         try:
             root = data_root
@@ -127,6 +140,16 @@ if preview or inspect or execute:
                     low, high, rows = observed_range(pairs)
                 st.info(f"The selected files contain values from {low!r} to {high!r}. Set score bounds that include these values, then Apply evaluation settings. Use the same bounds for every patient and run you want to compare, rather than choosing new ones each time.")
                 st.dataframe(rows, width="stretch")
+            if check:
+                bar = st.progress(0.0, text="Checking inputs…")
+                checked = check_inputs(pairs, options, masks=is_mask,
+                                       progress=lambda done, total: bar.progress(done / total, text=f"Checked {done} / {total} pairs"))
+                if checked["ready"]:
+                    st.success("Input checks passed. Review any notes before running.")
+                else:
+                    st.error(f"Please fix {checked['errors']} pair(s) before running.")
+                st.dataframe(checked["cases"], width="stretch")
+                st.caption("This checks files and settings, not anatomical alignment or available memory. Validation reads the files again when you run.")
             if execute:
                 options.update(group_by=group_by.strip(), pairing=pairing_options)
                 if options.get("pdf_font"):
@@ -161,8 +184,10 @@ if "completed" in st.session_state:
         st.caption("Finite per-case values have equal weight. Counts may differ; std is not a confidence interval. Vector descriptors remain in per-case results, not scalar summaries.")
     with case_tab:
         from synthetic_imaging_validation.cli.validate import _flatten
+        case_filter = st.selectbox("Show case", ["All cases"] + [p["key"] for p in report["pairs"]])
         st.dataframe([{"Case": p["key"], "Metric": metric_label(name), "Value": str(value)}
-                      for p in report["pairs"] for name, value in _flatten(p["metrics"])], width="stretch")
+                      for p in report["pairs"] if case_filter == "All cases" or p["key"] == case_filter
+                      for name, value in _flatten(p["metrics"])], width="stretch")
     with group_tab:
         groups = report.get("grouped_summary", {}).get("groups", {})
         if groups:
@@ -187,4 +212,19 @@ if "completed" in st.session_state:
         if (destination / filename).exists():
             column.download_button(label, (destination / filename).read_bytes(), file_name=filename, mime=mime,
                                    key=f"download_{filename}", width="stretch", on_click="ignore")
-    st.caption("ZIP includes settings and PNG/SVG/PDF plots, not input images. Use Reports and history to record this result at an epoch without recalculating metrics.")
+    st.caption("ZIP includes settings and plots, not input images.")
+    with st.expander("Add this result to an epoch history"):
+        st.caption("Record this completed evaluation without recalculating it. Use one run name for one fixed evaluation protocol.")
+        with st.form("completed_history"):
+            history_name = st.text_input("History filename", value="history.json")
+            history_run = st.text_input("Run name", value="validation")
+            history_step = st.number_input("Epoch / step", min_value=0, value=0)
+            record = st.form_submit_button("Record completed result")
+        if record:
+            try:
+                saved_options = json.loads((destination / "settings.json").read_text(encoding="utf-8"))
+                history_path = record_run_history(report, saved_options, output_root,
+                                                 filename=history_name, run=history_run, step=history_step)
+                st.success(f"Recorded epoch / step {history_step} in {history_path.name}. Open Reports and history to plot the series.")
+            except (ValueError, TypeError, OSError) as exc:
+                st.error(f"History was not updated: {exc}")

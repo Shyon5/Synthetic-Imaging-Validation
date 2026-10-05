@@ -12,7 +12,8 @@ Prefer a graphical interface? The optional [local Docker app](docs/local_app.md)
 lets you select image pairs or a manifest, calculate metrics and scores, inspect
 tables/plots and download reports in your browser. A browser-side slice viewer,
 feature/cohort comparisons, epoch histories, metric explanations and light/dark
-themes are included. Data stays on your computer.
+themes are included. You can check inputs before running, save and reload evaluation
+settings, and record completed results in an epoch history. Data stays on your computer.
 The guide includes Docker Desktop installation instructions for Windows.
 The Docker application will be further improved in the future, the current version is the starting point.
 

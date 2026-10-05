@@ -102,6 +102,29 @@ Use `docker compose down` to remove the container; results in the host folder
 remain. After updating the repository, run `docker compose up --build -d` again.
 No image is published to a registry by the provided workflow.
 
+### Updating an existing installation
+
+Start Docker Desktop (or your Docker Engine), open a terminal in the repository,
+then run these commands one at a time:
+
+```text
+docker compose build validation
+docker compose up -d --no-build validation
+docker compose ps
+docker compose logs --tail=60 validation
+```
+
+Continue to the start command only after the build succeeds. Wait for the
+container to become healthy, then refresh `http://localhost:8501`. Keep your
+existing `.env` so the same data and results folders remain connected.
+
+The current Dockerfile installs dependencies after copying the package source
+and README. Changes to those files can repeat the installation inside the image;
+they do not reinstall packages in your host Python or Conda environment. Docker
+reuses cached steps when possible. Do not use `--no-cache` for ordinary updates.
+With no code changes, start the existing image with
+`docker compose up -d --no-build validation`; no rebuild is needed.
+
 ## 3. Connect your data
 
 Either copy a study into the repository's ignored `data` folder or create a local
@@ -265,13 +288,46 @@ labels keep their existing identifiers for compatibility.
 Inputs must already be preprocessed. The app does not register, resample,
 normalize, anonymise or silently repair images. NIfTI geometry checks are kept
 enabled by default; an advanced override is explicit and recorded in settings.
-The pairing preview checks filenames and metadata, not the contents of
-every volume; shape and geometry checks happen during calculation.
+The pairing preview checks filenames and manifest fields, not image contents.
+Use **Check inputs** to inspect every selected pair before calculation. It reads
+one full-resolution pair at a time and reports shape, geometry, intensity bounds,
+NaN/Inf, axis settings and score-range problems. Empty masks and missing spacing
+are shown as notes rather than hidden. No metrics are calculated and no files
+are changed. Checks can take time for large studies.
+
+A passed check does not prove anatomical alignment, guarantee enough memory,
+or test every internal metric operation. Validation reads and checks the files
+again when you run, so changes made after the check are not silently ignored.
+
+If you are unsure where to start, open **Help me choose a workflow**. It explains
+which workspace fits matching images, unrelated cohorts, feature vectors or
+saved results. It does not select medical intensity ranges on your behalf.
 
 Choose **Images** or **Binary masks**, edit the metrics and parameters, then
-press **Apply evaluation settings**. Edits are sent together rather than causing
-a reload at every selection. The active metric list is shown below the form.
+press **Apply evaluation settings**. Metric and score selections refresh the
+available controls; parameters inside the form are applied together. Mask
+thresholds are shown for masks, score bounds only when a score is selected,
+and histogram bins only when needed. The active metric list is shown below the form.
 **Run validation** uses the last applied settings, or the initial defaults.
+
+### Reuse an evaluation setup
+
+After applying your settings, click **Download evaluation settings**. The small
+JSON profile contains metric choices and parameters, not images, patient IDs,
+labels, folder paths or PDF font paths.
+
+On another dataset or computer, open **Save or reuse evaluation settings**,
+select that file and click **Load settings**. The imported settings become active
+and populate the controls. Select your input files and label column separately.
+You can also load `settings.json` from a previous paired evaluation; input paths
+and other run-specific fields are ignored. Image and mask profiles are checked
+against the current **Images / Binary masks** selection. Results JSON files are
+not settings files. Importing a profile does not start a calculation.
+
+For NRMSE, **Advanced parameters** now offers the API's three normalizations:
+reference range, absolute mean, or root-mean-square intensity (`l2`). The default
+remains `range`. These give different values, so keep the same choice throughout
+a study. The selection is recorded in settings and epoch history.
 
 For PSNR/SSIM/MS-SSIM enter the known intensity range width. A width of `1` is
 appropriate for data prepared in a unit-width interval, not arbitrary CT or PET.
@@ -314,6 +370,20 @@ No automatic clipping or normalization occurs. Do not fit a separate interval
 to each patient or epoch: keep a common protocol for comparisons. Display
 windowing has no effect on these checks. See [Scores and validation plots](scores_and_plots.md)
 for the 0–100 prototype formulas and their limitations.
+
+In **Per case**, use **Show case** to focus the table on one patient. To record
+a completed evaluation at an epoch, open **Add this result to an epoch history**
+below the downloads. Enter the epoch, run name and a history filename inside the
+results folder. This uses the settings saved with that result, even if you have
+since edited the controls. Changing the metric set or protocol requires a new
+run name. It does not recalculate metrics or replace earlier result bundles.
+Use **Reports and history** to plot the recorded series. Avoid concurrent writes
+to the same history file.
+
+These additions do not introduce a background job queue, cancellation, automatic
+preprocessing or an LLM assistant. Class grouping for independent intensity
+cohorts and full API parameter exposure remain future work; paired-image and
+feature-label grouping are already available.
 
 Spacing overrides follow array-axis order. NIfTI spacing is otherwise read from
 the header; array files without a spacing override use unit spacing. A channel

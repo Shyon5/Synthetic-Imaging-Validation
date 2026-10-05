@@ -26,7 +26,7 @@ def test_demo_browser_workflow(tmp_path, monkeypatch):
     widget(app, "button", "Apply evaluation settings").click().run()
     widget(app, "button", "Run validation").click().run()
     assert not app.exception and not app.error
-    assert len(app.get("download_button")) == 6
+    assert len(app.get("download_button")) == 7
     assert app.metric[0].value == "4"
     assert "similarity_score.value" in app.session_state["completed"][0]["summary"]["metrics"]
     app.run()
@@ -41,6 +41,8 @@ def test_score_explanation_is_in_contextual_help(tmp_path, monkeypatch):
     assert "Normalization to [0, 1] is not required" in scores.proto.help
     assert not any(expander.label == "Why do scores check the interval when other metrics still run?"
                    for expander in app.expander)
+    assert not any(w.label == "Score interval: lower bound" for w in app.number_input)
+    scores.select("similarity").run()
     assert widget(app, "number_input", "Score interval: lower bound").value == 0.0
     assert widget(app, "number_input", "Score interval: upper bound").value == 1.0
 
@@ -111,7 +113,7 @@ def test_bounds_inspection_and_custom_score_interval(tmp_path, monkeypatch):
     widget(app, "radio", "Input mode").set_value("Two files").run()
     widget(app, "button", "Inspect intensity bounds").click().run()
     assert any("-1000" in info.value for info in app.info)
-    widget(app, "multiselect", "Experimental scores (optional)").select("similarity")
+    widget(app, "multiselect", "Experimental scores (optional)").select("similarity").run()
     widget(app, "number_input", "Score interval: lower bound").set_value(-1000.)
     widget(app, "number_input", "Score interval: upper bound").set_value(2000.)
     widget(app, "button", "Apply evaluation settings").click().run()
@@ -143,3 +145,41 @@ def test_feature_page_evaluation(tmp_path, monkeypatch):
     widget(app, "button", "Evaluate features").click().run()
     assert not app.exception and not app.error
     assert app.session_state["advanced_completed"][0]["frechet"] == pytest.approx(0, abs=1e-10)
+
+
+def test_preflight_guidance_and_contextual_controls(tmp_path, monkeypatch):
+    app = launch(tmp_path, monkeypatch)
+    assert not any(w.label == "Binary mask threshold" for w in app.number_input)
+    widget(app, "button", "Check inputs").click().run()
+    assert not app.exception and not app.error
+    assert any("Input checks passed" in item.value for item in app.success)
+    assert not (tmp_path / "results").exists()
+    widget(app, "radio", "What do you have?").set_value("Two datasets without matching patients").run()
+    assert any("not SSIM or Dice" in item.value for item in app.info)
+    widget(app, "radio", "What are you evaluating?").set_value("Binary masks").run()
+    assert widget(app, "number_input", "Binary mask threshold").value == 0.5
+    assert not any(w.label == "Channel axis (optional)" for w in app.text_input)
+
+
+def test_restored_settings_render_and_history_uses_saved_values(tmp_path, monkeypatch):
+    import json
+    from apps.local_validation.profiles import defaults, import_profile, export_profile
+    app = launch(tmp_path, monkeypatch)
+    options = dict(defaults(), metrics=["nrmse"], nrmse_normalization="mean", workers=2)
+    app.session_state["settings_image"] = import_profile(export_profile(options))
+    app.session_state["settings_revision_image"] = 1
+    app.run()
+    assert widget(app, "selectbox", "NRMSE normalization").value == "mean"
+    assert widget(app, "multiselect", "Metrics").value == ["nrmse"]
+    widget(app, "button", "Apply evaluation settings").click().run()
+    widget(app, "button", "Run validation").click().run()
+    assert not app.exception and not app.error
+    widget(app, "selectbox", "Show case").set_value("case_01").run()
+    widget(app, "selectbox", "NRMSE normalization").set_value("l2")
+    widget(app, "button", "Apply evaluation settings").click().run()
+    widget(app, "number_input", "Epoch / step").set_value(1)
+    widget(app, "button", "Record completed result").click().run()
+    assert not app.exception and not app.error
+    history = json.loads((tmp_path / "results" / "history.json").read_text())
+    assert history["records"][0]["protocol"]["evaluation"]["evaluation_settings"]["nrmse_normalization"] == "mean"
+    assert len(list((tmp_path / "results").glob("*/results.json"))) == 1
