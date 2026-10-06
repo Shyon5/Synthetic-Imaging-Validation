@@ -149,6 +149,7 @@ def test_feature_page_evaluation(tmp_path, monkeypatch):
 
 def test_preflight_guidance_and_contextual_controls(tmp_path, monkeypatch):
     app = launch(tmp_path, monkeypatch)
+    assert widget(app, "button", "Load settings").disabled
     assert not any(w.label == "Binary mask threshold" for w in app.number_input)
     widget(app, "button", "Check inputs").click().run()
     assert not app.exception and not app.error

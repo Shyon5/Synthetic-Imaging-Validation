@@ -16,7 +16,9 @@ def evaluation_settings(masks):
         st.caption("Reuse the same metrics and parameters on another dataset. Files, case labels and folders are not included.")
         uploaded = st.file_uploader("Settings JSON", type=["json"], key=f"profile_{key}",
                                     help="Choose an exported profile or settings.json from a previous paired evaluation.")
-        if st.button("Load settings", key=f"load_{key}"):
+        if uploaded is not None:
+            st.caption("Settings file received. Ready to load.")
+        if st.button("Load settings", key=f"load_{key}", disabled=uploaded is None):
             try:
                 if uploaded is None:
                     raise ValueError("Choose a settings file first.")

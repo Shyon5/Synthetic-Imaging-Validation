@@ -51,10 +51,16 @@ def test_live_layout_client_slicing_and_history(tmp_path):
             # Import a portable profile through the real browser uploader.
             from apps.local_validation.profiles import defaults, export_profile
             page.get_by_text("Save or reuse evaluation settings", exact=True).click()
+            playwright.expect(page.get_by_role("button", name="Load settings", exact=True)).to_be_disabled()
             profile = export_profile(dict(defaults(), workers=2))
             page.locator('input[type="file"]').first.set_input_files({
                 "name": "settings.json", "mimeType": "application/json", "buffer": profile.encode()})
-            page.get_by_role("button", name="Load settings", exact=True).click()
+            # File selection finishes before Streamlit receives the upload and
+            # reruns. Wait for server acknowledgement, not the browser filename.
+            page.get_by_text("Settings file received. Ready to load.", exact=True).wait_for()
+            load = page.get_by_role("button", name="Load settings", exact=True)
+            playwright.expect(load).to_be_enabled()
+            load.click()
             playwright.expect(page.get_by_role("spinbutton", name="Parallel workers", exact=True)).to_have_value("2")
             page.get_by_text("Two files", exact=True).click()
             page.get_by_text("Open image viewer", exact=True).click()
